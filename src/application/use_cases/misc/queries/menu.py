@@ -1,11 +1,15 @@
+import asyncio
 from dataclasses import dataclass, field
 from typing import Optional
+
+from loguru import logger
 
 from src.application.common import Interactor, TranslatorRunner
 from src.application.common.dao import PlanDao, SettingsDao, SubscriptionDao
 from src.application.common.policy import Permission
 from src.application.dto import MenuButtonDto, PlanDto, SubscriptionDto, UserDto
 from src.application.services import BotService
+from src.application.use_cases.subscription.commands.sync import SyncSubscriptionFromRemnawave
 from src.application.use_cases.user.queries.plans import GetAvailableTrial
 
 
@@ -30,6 +34,7 @@ class GetMenuData(Interactor[None, GetMenuDataResultDto]):
         bot_service: BotService,
         i18n: TranslatorRunner,
         get_available_trial: GetAvailableTrial,
+        sync_subscription_from_remnawave: SyncSubscriptionFromRemnawave,
     ) -> None:
         self.plan_dao = plan_dao
         self.settings_dao = settings_dao
@@ -37,9 +42,24 @@ class GetMenuData(Interactor[None, GetMenuDataResultDto]):
         self.bot_service = bot_service
         self.i18n = i18n
         self.get_available_trial = get_available_trial
+        self.sync_subscription_from_remnawave = sync_subscription_from_remnawave
 
     async def _execute(self, actor: UserDto, data: None) -> GetMenuDataResultDto:
         current_subscription = await self.subscription_dao.get_current(actor.telegram_id)
+
+        if current_subscription:
+            try:
+                async with asyncio.timeout(1.0):
+                    await self.sync_subscription_from_remnawave.system(actor.telegram_id)
+                current_subscription = await self.subscription_dao.get_current(actor.telegram_id)
+            except TimeoutError:
+                logger.warning(
+                    f"{actor.log} Timed out while syncing subscription before menu rendering"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"{actor.log} Failed to sync subscription from panel before rendering menu: {e}"
+                )
 
         plan = None
         if actor.is_trial_available:

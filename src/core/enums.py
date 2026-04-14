@@ -92,6 +92,7 @@ class PaymentGatewayType(UpperStrEnum):
     ROBOKASSA = auto()
     URLPAY = auto()
     WATA = auto()
+    CARD2CARD = auto()
 
 
 class PurchaseType(UpperStrEnum):
@@ -251,6 +252,7 @@ class Currency(UpperStrEnum):
     USD = auto()
     XTR = auto()
     RUB = auto()
+    TOMAN = auto()
 
     @property
     def symbol(self) -> str:
@@ -258,6 +260,7 @@ class Currency(UpperStrEnum):
             self.USD: "$",
             self.XTR: "★",
             self.RUB: "₽",
+            self.TOMAN: "تومان",
         }
         return symbols.get(self, "?")
 
@@ -281,6 +284,7 @@ class Currency(UpperStrEnum):
             PaymentGatewayType.ROBOKASSA: cls.RUB,
             PaymentGatewayType.URLPAY: cls.RUB,
             PaymentGatewayType.WATA: cls.RUB,
+            PaymentGatewayType.CARD2CARD: cls.RUB,
         }
 
         try:

@@ -106,6 +106,7 @@ ntf-gateway =
     .not-configurable = ❌ <i>У платежного шлюза отсутствуют настройки.</i>
 
     .test-payment-created = ✅ <i><a href="{ $url }">Тестовый платеж</a> успешно создан.</i>
+    .test-payment-created-no-url = ✅ <i>Тестовая транзакция создана. Payment ID: <code>{ $payment_id }</code></i>
     .test-payment-error = ❌ <i>Ошибка при создании тестового платежа.</i>
     .test-payment-confirmed = ✅ <i>Тестовый платеж успешно обработан.</i>
 
@@ -114,6 +115,25 @@ ntf-subscription =
     .gateways-unavailable = ❌ <i>В данный момент нет доступных платежных систем.</i>
     .renew-plan-unavailable = ❌ <i>Текущий план устарел и недоступен для продления.</i>
     .payment-creation-failed = ❌ <i>Ошибка при создании платежа. Попробуйте позже.</i>
+
+    .manual-invalid-method = ❌ <i>Некорректный способ оплаты. Начните покупку заново.</i>
+    .manual-not-required = ❌ <i>Для этого способа оплаты чек не требуется.</i>
+    .manual-invalid-payment-id = ❌ <i>Некорректный идентификатор платежа. Попробуйте снова.</i>
+    .manual-pending-not-found = ❌ <i>Ожидаемый платеж не найден.</i>
+    .manual-already-processed = ⚠️ <i>Этот платеж уже был обработан.</i>
+    .manual-receipt-format = ❌ <i>Отправьте чек текстом или фотографией.</i>
+    .manual-receipt-sent = ✅ <i>Чек отправлен на проверку. Ожидайте результат.</i>
+    .manual-rejected = ❌ <i>Оплата отклонена. Отправьте чек повторно или обратитесь в поддержку.</i>
+    .manual-admin-review =
+        🧾 <b>Новая заявка card-to-card</b>
+
+        <b>Пользователь:</b> { $user_name }
+        <b>Username:</b> { $username }
+        <b>Telegram ID:</b> <code>{ $telegram_id }</code>
+        <b>Payment ID:</b> <code>{ $payment_id }</code>
+
+        <b>Чек:</b>
+        { $receipt }
 
 ntf-broadcast =
     .message = { $content }

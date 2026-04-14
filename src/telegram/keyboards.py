@@ -1,8 +1,13 @@
 from typing import Final, Optional
 
 from aiogram.enums import ButtonStyle
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+)
+from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 from aiogram_dialog import StartMode
 from aiogram_dialog.widgets.kbd import CopyText, Group, ListGroup, Row, Start, Url, WebApp
 from aiogram_dialog.widgets.style import Style
@@ -16,6 +21,15 @@ from src.telegram.widgets import I18nFormat
 
 CALLBACK_CHANNEL_CONFIRM: Final[str] = "channel_confirm"
 CALLBACK_RULES_ACCEPT: Final[str] = "rules_accept"
+MANUAL_PAYMENT_CALLBACK_PREFIX: Final[str] = "mp"
+MANUAL_PAYMENT_APPROVE_ACTION: Final[str] = "ok"
+MANUAL_PAYMENT_REJECT_ACTION: Final[str] = "no"
+
+PERSIAN_SUPPORT_COMMAND_TEXT: Final[str] = "💸 بازپرداخت"
+PERSIAN_RULES_COMMAND_TEXT: Final[str] = "📜 قوانین"
+PERSIAN_HELP_COMMAND_TEXT: Final[str] = "🆘 راهنما"
+PERSIAN_TRIAL_COMMAND_TEXT: Final[str] = "اشتراک تست🧪"
+PERSIAN_START_COMMAND_TEXT: Final[str] = "🚀 شروع"
 
 
 def build_buttons_row(row: int) -> Group:
@@ -184,6 +198,43 @@ def get_rules_keyboard() -> InlineKeyboardMarkup:
 def get_contact_support_keyboard(support_url: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="btn-goto.contact-support", url=support_url))
+    return builder.as_markup()
+
+
+def get_persian_commands_keyboard() -> ReplyKeyboardMarkup:
+    builder = ReplyKeyboardBuilder()
+    builder.row(KeyboardButton(text=PERSIAN_START_COMMAND_TEXT))
+    builder.row(
+        KeyboardButton(text=PERSIAN_SUPPORT_COMMAND_TEXT),
+        KeyboardButton(text=PERSIAN_RULES_COMMAND_TEXT),
+    )
+    builder.row(
+        KeyboardButton(text=PERSIAN_HELP_COMMAND_TEXT),
+        KeyboardButton(text=PERSIAN_TRIAL_COMMAND_TEXT),
+    )
+    return builder.as_markup(
+        resize_keyboard=True,
+        is_persistent=True,
+        input_field_placeholder="یک گزینه را انتخاب کنید",
+    )
+
+
+def get_manual_payment_moderation_keyboard(payment_id: str) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="btn-manual-payment.approve",
+            callback_data=(
+                f"{MANUAL_PAYMENT_CALLBACK_PREFIX}:{MANUAL_PAYMENT_APPROVE_ACTION}:{payment_id}"
+            ),
+        ),
+        InlineKeyboardButton(
+            text="btn-manual-payment.reject",
+            callback_data=(
+                f"{MANUAL_PAYMENT_CALLBACK_PREFIX}:{MANUAL_PAYMENT_REJECT_ACTION}:{payment_id}"
+            ),
+        ),
+    )
     return builder.as_markup()
 
 

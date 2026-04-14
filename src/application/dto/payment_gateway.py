@@ -31,6 +31,7 @@ class PaymentGatewayDto(BaseDto, TrackableMixin):
             PaymentGatewayType.HELEKET,
             PaymentGatewayType.FREEKASSA,
             PaymentGatewayType.PAYMASTER,
+            PaymentGatewayType.CARD2CARD,
         }
 
 
@@ -149,6 +150,12 @@ class WataGatewaySettingsDto(GatewaySettingsDto):
     api_key: Optional[SecretStr] = None
 
 
+@dataclass(kw_only=True)
+class CardToCardGatewaySettingsDto(GatewaySettingsDto):
+    type: Literal[PaymentGatewayType.CARD2CARD] = PaymentGatewayType.CARD2CARD
+    description: Optional[str] = None
+
+
 AnyGatewaySettingsDto = Union[
     YooKassaGatewaySettingsDto,
     YooMoneyGatewaySettingsDto,
@@ -162,4 +169,5 @@ AnyGatewaySettingsDto = Union[
     RoboKassaGatewaySettingsDto,
     UrlPayGatewaySettingsDto,
     WataGatewaySettingsDto,
+    CardToCardGatewaySettingsDto,
 ]

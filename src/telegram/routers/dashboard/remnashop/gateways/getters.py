@@ -10,6 +10,16 @@ from src.core.config import AppConfig
 from src.core.enums import Currency
 
 
+def _get_enabled_currencies(currencies: list[Currency]) -> list[Currency]:
+    unique: list[Currency] = []
+    for currency in currencies:
+        if currency not in unique:
+            unique.append(currency)
+
+    ordered = [currency for currency in Currency if currency in unique]
+    return ordered or [Currency.XTR]
+
+
 @inject
 async def gateways_getter(
     dialog_manager: DialogManager,
@@ -88,12 +98,39 @@ async def currency_getter(
     **kwargs: Any,
 ) -> dict[str, Any]:
     settings = await settings_dao.get()
+    enabled_currencies = _get_enabled_currencies(settings.access.available_currencies)
+
+    if settings.default_currency not in enabled_currencies:
+        enabled_currencies = [settings.default_currency, *enabled_currencies]
+        enabled_currencies = _get_enabled_currencies(enabled_currencies)
+
     return {
         "currency_list": [
             {
                 "symbol": currency.symbol,
                 "currency": currency.value,
                 "enabled": currency == settings.default_currency,
+            }
+            for currency in enabled_currencies
+        ]
+    }
+
+
+@inject
+async def currency_manage_getter(
+    dialog_manager: DialogManager,
+    settings_dao: FromDishka[SettingsDao],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    settings = await settings_dao.get()
+    enabled_currencies = _get_enabled_currencies(settings.access.available_currencies)
+
+    return {
+        "currency_list": [
+            {
+                "symbol": currency.symbol,
+                "currency": currency.value,
+                "enabled": currency in enabled_currencies,
             }
             for currency in Currency
         ]

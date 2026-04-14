@@ -5,7 +5,7 @@ from loguru import logger
 from src.application.common import Cryptographer, Interactor
 from src.application.common.dao import PlanDao
 from src.application.common.policy import Permission
-from src.application.dto import PlanDto, UserDto
+from src.application.dto import PlanDto, PlanPriceDto, UserDto
 from src.application.services import PricingService
 from src.core.constants import TAG_REGEX
 from src.core.enums import Currency, PlanType
@@ -186,6 +186,12 @@ class UpdatePlanPrice(Interactor[UpdatePlanPriceDto, PlanDto]):
                             f"days and currency '{data.currency}' to '{new_price}'"
                         )
                         return data.plan
+                    duration.prices.append(PlanPriceDto(currency=data.currency, price=new_price))
+                    logger.info(
+                        f"{actor.log} Added price for duration '{data.duration}' "
+                        f"days and currency '{data.currency}' as '{new_price}'"
+                    )
+                    return data.plan
 
         logger.warning(f"{actor.log} Price target not found for duration '{data.duration}'")
         raise ValueError("Target duration or currency not found in plan")

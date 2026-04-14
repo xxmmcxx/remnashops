@@ -1,5 +1,6 @@
 from aiogram.enums import ButtonStyle
 from aiogram_dialog import Dialog, Window
+from aiogram_dialog.widgets.input import MessageInput
 from aiogram_dialog.widgets.kbd import Button, Column, Group, Row, Select, SwitchTo, Url
 from aiogram_dialog.widgets.style import Style
 from aiogram_dialog.widgets.text import Format
@@ -24,6 +25,8 @@ from .getters import (
 from .handlers import (
     on_duration_select,
     on_get_subscription,
+    on_manual_receipt_input,
+    on_manual_receipt_start,
     on_payment_method_select,
     on_plan_select,
     on_subscription_plans,
@@ -192,6 +195,11 @@ payment_method = Window(
 confirm = Window(
     Banner(BannerName.SUBSCRIPTION),
     I18nFormat("msg-subscription-confirm"),
+    I18nFormat(
+        "msg-subscription-manual-payment",
+        manual_payment_description=F["manual_payment_description"],
+        when=F["is_manual_payment"],
+    ),
     Row(
         Url(
             text=I18nFormat("btn-subscription.pay"),
@@ -203,7 +211,14 @@ confirm = Window(
             text=I18nFormat("btn-subscription.get"),
             id=f"{PAYMENT_PREFIX}get",
             on_click=on_get_subscription,
-            when=~F["url"],
+            when=F["is_free"],
+            style=Style(ButtonStyle.SUCCESS),
+        ),
+        Button(
+            text=I18nFormat("btn-subscription.send-receipt"),
+            id=f"{PAYMENT_PREFIX}manual_receipt",
+            on_click=on_manual_receipt_start,
+            when=F["is_manual_payment"] & ~F["is_free"],
             style=Style(ButtonStyle.SUCCESS),
         ),
     ),
@@ -232,6 +247,25 @@ confirm = Window(
     *back_main_menu_button,
     IgnoreUpdate(),
     state=Subscription.CONFIRM,
+    getter=confirm_getter,
+)
+
+manual_receipt = Window(
+    Banner(BannerName.SUBSCRIPTION),
+    I18nFormat(
+        "msg-subscription-manual-receipt",
+        manual_payment_description=F["manual_payment_description"],
+    ),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-back.general"),
+            id=f"{PAYMENT_PREFIX}back_confirm",
+            state=Subscription.CONFIRM,
+        ),
+    ),
+    MessageInput(func=on_manual_receipt_input),
+    IgnoreUpdate(),
+    state=Subscription.MANUAL_RECEIPT,
     getter=confirm_getter,
 )
 
@@ -274,6 +308,7 @@ router = Dialog(
     duration,
     payment_method,
     confirm,
+    manual_receipt,
     success_payment,
     success_trial,
     failed,

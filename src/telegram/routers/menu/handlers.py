@@ -27,7 +27,11 @@ from src.core.constants import USER_KEY
 from src.core.enums import MediaType
 from src.core.utils.i18n_helpers import i18n_format_expire_time
 from src.core.utils.time import get_traffic_reset_delta
-from src.telegram.keyboards import CALLBACK_CHANNEL_CONFIRM, CALLBACK_RULES_ACCEPT
+from src.telegram.keyboards import (
+    CALLBACK_CHANNEL_CONFIRM,
+    CALLBACK_RULES_ACCEPT,
+    get_persian_commands_keyboard,
+)
 from src.telegram.states import MainMenu
 
 router = Router(name=__name__)
@@ -38,12 +42,16 @@ async def on_start_dialog(user: UserDto, dialog_manager: DialogManager) -> None:
     await dialog_manager.start(
         state=MainMenu.MAIN,
         mode=StartMode.RESET_STACK,
-        show_mode=ShowMode.DELETE_AND_SEND,
+        show_mode=ShowMode.AUTO,
     )
 
 
 @router.message(CommandStart(ignore_case=True))
 async def on_start_command(message: Message, user: UserDto, dialog_manager: DialogManager) -> None:
+    await message.answer(
+        text="⌨️",
+        reply_markup=get_persian_commands_keyboard(),
+    )
     await on_start_dialog(user, dialog_manager)
 
 

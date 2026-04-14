@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any, cast
 
 from adaptix import Retort
@@ -11,9 +12,10 @@ from src.application.common.dao import PaymentGatewayDao, PlanDao, SettingsDao, 
 from src.application.dto import PlanDto, PriceDetailsDto, UserDto
 from src.application.services import PricingService
 from src.application.use_cases.plan.queries.match import MatchPlan, MatchPlanDto
+from src.application.use_cases.subscription.commands.sync import SyncSubscriptionFromRemnawave
 from src.application.use_cases.user.queries.plans import GetAvailablePlans
 from src.core.config import AppConfig
-from src.core.enums import PurchaseType
+from src.core.enums import Currency, PaymentGatewayType, PurchaseType
 from src.core.utils.i18n_helpers import (
     i18n_format_days,
     i18n_format_device_limit,
@@ -23,14 +25,33 @@ from src.core.utils.i18n_helpers import (
 from src.telegram.states import Subscription
 
 
+def _normalize_enabled_currencies(currencies: list[Currency]) -> list[Currency]:
+    ordered = [currency for currency in Currency if currency in currencies]
+    return ordered or [Currency.XTR]
+
+
 @inject
 async def subscription_getter(
     dialog_manager: DialogManager,
     user: UserDto,
     subscription_dao: FromDishka[SubscriptionDao],
+    sync_subscription_from_remnawave: FromDishka[SyncSubscriptionFromRemnawave],
     **kwargs: Any,
 ) -> dict[str, Any]:
     current_subscription = await subscription_dao.get_current(user.telegram_id)
+
+    if current_subscription:
+        try:
+            async with asyncio.timeout(1.0):
+                await sync_subscription_from_remnawave.system(user.telegram_id)
+            current_subscription = await subscription_dao.get_current(user.telegram_id)
+        except TimeoutError:
+            logger.warning(f"{user.log} Timed out while syncing subscription in getter")
+        except Exception as e:
+            logger.warning(
+                f"{user.log} Failed to sync subscription from panel in subscription getter: {e}"
+            )
+
     has_active = bool(current_subscription and not current_subscription.is_trial)
     is_unlimited = current_subscription.is_unlimited if current_subscription else False
     return {
@@ -164,6 +185,7 @@ async def payment_method_getter(
     retort: FromDishka[Retort],
     i18n: FromDishka[TranslatorRunner],
     payment_gateway_dao: FromDishka[PaymentGatewayDao],
+    settings_dao: FromDishka[SettingsDao],
     pricing_service: FromDishka[PricingService],
     **kwargs: Any,
 ) -> dict[str, Any]:
@@ -175,7 +197,13 @@ async def payment_method_getter(
         return {}
 
     plan = retort.load(raw_plan, PlanDto)
-    gateways = await payment_gateway_dao.get_active()
+    settings = await settings_dao.get()
+    enabled_currencies = _normalize_enabled_currencies(settings.access.available_currencies)
+    gateways = [
+        gateway
+        for gateway in await payment_gateway_dao.get_active()
+        if gateway.currency in enabled_currencies
+    ]
     selected_duration = dialog_manager.dialog_data["selected_duration"]
     only_single_duration = dialog_manager.dialog_data.get("only_single_duration", False)
     duration = plan.get_duration(selected_duration)
@@ -222,6 +250,7 @@ async def confirm_getter(
     retort: FromDishka[Retort],
     i18n: FromDishka[TranslatorRunner],
     payment_gateway_dao: FromDishka[PaymentGatewayDao],
+    settings_dao: FromDishka[SettingsDao],
     pricing_service: FromDishka[PricingService],
     **kwargs: Any,
 ) -> dict[str, Any]:
@@ -237,6 +266,9 @@ async def confirm_getter(
     only_single_duration = dialog_manager.dialog_data.get("only_single_duration", False)
     is_free = dialog_manager.dialog_data.get("is_free", False)
     selected_payment_method = dialog_manager.dialog_data["selected_payment_method"]
+    if not isinstance(selected_payment_method, PaymentGatewayType):
+        selected_payment_method = PaymentGatewayType(selected_payment_method)
+
     purchase_type = dialog_manager.dialog_data["purchase_type"]
     payment_gateway = await payment_gateway_dao.get_by_type(selected_payment_method)
     duration = plan.get_duration(selected_duration)
@@ -252,7 +284,17 @@ async def confirm_getter(
     pricing = retort.load(pricing_data, PriceDetailsDto)
 
     key, kw = i18n_format_days(duration.days)
-    gateways = await payment_gateway_dao.get_active()
+    settings = await settings_dao.get()
+    enabled_currencies = _normalize_enabled_currencies(settings.access.available_currencies)
+    gateways = [
+        gateway
+        for gateway in await payment_gateway_dao.get_active()
+        if gateway.currency in enabled_currencies
+    ]
+    manual_payment_description = ""
+
+    if payment_gateway.settings:
+        manual_payment_description = getattr(payment_gateway.settings, "description", "") or ""
 
     return {
         "purchase_type": purchase_type,
@@ -272,6 +314,8 @@ async def confirm_getter(
         "only_single_gateway": len(gateways) == 1,
         "only_single_duration": only_single_duration,
         "is_free": is_free,
+        "is_manual_payment": selected_payment_method == PaymentGatewayType.CARD2CARD,
+        "manual_payment_description": manual_payment_description,
     }
 
 

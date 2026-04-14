@@ -28,6 +28,7 @@ from src.application.dto import (
     UserDto,
 )
 from src.application.dto.payment_gateway import (
+    CardToCardGatewaySettingsDto,
     CryptomusGatewaySettingsDto,
     CryptoPayGatewaySettingsDto,
     FreeKassaGatewaySettingsDto,
@@ -88,6 +89,7 @@ class CreateDefaultPaymentGateway(Interactor[None, None]):
                     PaymentGatewayType.ROBOKASSA: RoboKassaGatewaySettingsDto,
                     PaymentGatewayType.URLPAY: UrlPayGatewaySettingsDto,
                     PaymentGatewayType.WATA: WataGatewaySettingsDto,
+                    PaymentGatewayType.CARD2CARD: CardToCardGatewaySettingsDto,
                 }
                 dto_class = settings_map.get(gateway_type)
                 settings = dto_class() if dto_class else None

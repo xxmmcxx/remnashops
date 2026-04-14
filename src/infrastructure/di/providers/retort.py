@@ -29,6 +29,7 @@ from src.application.dto import (
     RequirementSettingsDto,
 )
 from src.application.dto.payment_gateway import (
+    CardToCardGatewaySettingsDto,
     CryptomusGatewaySettingsDto,
     CryptoPayGatewaySettingsDto,
     FreeKassaGatewaySettingsDto,
@@ -102,6 +103,7 @@ class RetortProvider(Provider):
                 PaymentGatewayType.ROBOKASSA: RoboKassaGatewaySettingsDto,
                 PaymentGatewayType.URLPAY: UrlPayGatewaySettingsDto,
                 PaymentGatewayType.WATA: WataGatewaySettingsDto,
+                PaymentGatewayType.CARD2CARD: CardToCardGatewaySettingsDto,
             }
 
             dto_class = type_mapping.get(pg_type)
@@ -151,6 +153,7 @@ class RetortProvider(Provider):
                         RoboKassaGatewaySettingsDto,
                         UrlPayGatewaySettingsDto,
                         WataGatewaySettingsDto,
+                        CardToCardGatewaySettingsDto,
                     ]
                 ],
             ]

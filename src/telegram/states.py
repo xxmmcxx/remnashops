@@ -25,6 +25,7 @@ class Subscription(StatesGroup):
     DURATION = State()
     PAYMENT_METHOD = State()
     CONFIRM = State()
+    MANUAL_RECEIPT = State()
     SUCCESS = State()
     FAILED = State()
     TRIAL = State()
@@ -127,6 +128,7 @@ class RemnashopGateways(StatesGroup):
     SETTINGS = State()
     FIELD = State()
     CURRENCY = State()
+    CURRENCY_MANAGE = State()
     PLACEMENT = State()
 
 

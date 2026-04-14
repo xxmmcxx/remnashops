@@ -1,4 +1,5 @@
 from aiogram_dialog import Dialog, StartMode, Window
+from aiogram_dialog.widgets.input import MessageInput
 from aiogram_dialog.widgets.kbd import Button, ListGroup, Row, Start, SwitchTo
 from aiogram_dialog.widgets.text import Format
 from magic_filter import F
@@ -20,7 +21,7 @@ from src.telegram.utils import require_permission
 from src.telegram.widgets import Banner, I18nFormat, IgnoreUpdate
 
 from .getters import admins_getter, remnashop_getter
-from .handlers import on_logs_request, on_role_revoke, on_user_select
+from .handlers import on_admin_add_input, on_logs_request, on_role_revoke, on_user_select
 
 remnashop = Window(
     Banner(BannerName.DASHBOARD),
@@ -128,6 +129,7 @@ admins = Window(
             mode=StartMode.RESET_STACK,
         ),
     ),
+    MessageInput(func=on_admin_add_input),
     IgnoreUpdate(),
     state=DashboardRemnashop.ADMINS,
     getter=admins_getter,

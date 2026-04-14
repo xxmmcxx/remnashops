@@ -104,7 +104,17 @@ class PlanDurationDto(BaseDto, TrackableMixin):
     prices: list["PlanPriceDto"] = field(default_factory=list)
 
     def get_price(self, currency: Currency) -> Decimal:
-        return next((p.price for p in self.prices if p.currency == currency))
+        matched_price = next((p.price for p in self.prices if p.currency == currency), None)
+
+        if matched_price is not None:
+            return matched_price
+
+        if currency == Currency.TOMAN:
+            rub_price = next((p.price for p in self.prices if p.currency == Currency.RUB), None)
+            if rub_price is not None:
+                return rub_price
+
+        raise ValueError(f"Price for currency '{currency}' is not configured")
 
 
 @dataclass(kw_only=True)

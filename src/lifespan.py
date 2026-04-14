@@ -7,6 +7,8 @@ from aiogram.types import WebhookInfo
 from dishka import AsyncContainer, Scope
 from fastapi import FastAPI
 from loguru import logger
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from src.application.common import Remnawave
 from src.application.common.dao import SettingsDao
@@ -28,6 +30,25 @@ from src.infrastructure.services import EventBusImpl
 from src.web.endpoints import TelegramWebhookEndpoint
 
 
+async def ensure_runtime_enums(engine: AsyncEngine) -> None:
+    async with engine.begin() as connection:
+        await connection.execute(
+            text("ALTER TYPE payment_gateway_type ADD VALUE IF NOT EXISTS 'CARD2CARD'")
+        )
+        await connection.execute(text("ALTER TYPE currency ADD VALUE IF NOT EXISTS 'TOMAN'"))
+
+        await connection.execute(
+            text(
+                """
+                UPDATE payment_gateways
+                SET currency = (SELECT default_currency FROM settings LIMIT 1)
+                WHERE type != 'TELEGRAM_STARS'
+                  AND currency != (SELECT default_currency FROM settings LIMIT 1)
+                """
+            )
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     dispatcher: Dispatcher = app.state.dispatcher
@@ -45,7 +66,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         webhook_service = await startup_container.get(WebhookService)
         command_service = await startup_container.get(CommandService)
         remnawave_service = await startup_container.get(Remnawave)
+        db_engine = await startup_container.get(AsyncEngine)
         create_default_payment_gateway = await startup_container.get(CreateDefaultPaymentGateway)
+
+        await ensure_runtime_enums(db_engine)
 
         if not await bot_service.is_inline_enabled():
             logger.warning(

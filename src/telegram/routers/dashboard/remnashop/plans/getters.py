@@ -9,7 +9,7 @@ from remnapy import RemnawaveSDK
 from remnapy.enums.users import TrafficLimitStrategy
 
 from src.application.common import TranslatorRunner
-from src.application.common.dao import PlanDao
+from src.application.common.dao import PlanDao, SettingsDao
 from src.application.dto import PlanDto, PlanDurationDto, PlanPriceDto
 from src.application.services import BotService
 from src.core.enums import Currency, PlanAvailability, PlanType
@@ -227,12 +227,27 @@ def get_prices_for_duration(
 async def prices_getter(
     dialog_manager: DialogManager,
     retort: FromDishka[Retort],
+    settings_dao: FromDishka[SettingsDao],
     **kwargs: Any,
 ) -> dict[str, Any]:
     plan = retort.load(dialog_manager.dialog_data[PlanDto.__name__], PlanDto)
     selected_duration = dialog_manager.dialog_data["selected_duration"]
-    prices = get_prices_for_duration(plan.durations, selected_duration)
-    prices_data = [retort.dump(price) for price in prices] if prices else []
+    prices = get_prices_for_duration(plan.durations, selected_duration) or []
+    settings = await settings_dao.get()
+
+    enabled_currencies = settings.access.available_currencies or list(Currency)
+    enabled_currencies = [currency for currency in Currency if currency in enabled_currencies]
+    if not enabled_currencies:
+        enabled_currencies = [Currency.XTR]
+
+    existing_prices = {price.currency: price.price for price in prices}
+    prices_data = [
+        {
+            "currency": currency.value,
+            "price": existing_prices.get(currency, "-"),
+        }
+        for currency in enabled_currencies
+    ]
 
     return {
         "duration": selected_duration,

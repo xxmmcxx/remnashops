@@ -275,6 +275,7 @@ btn-gateway =
     .webhook-copy = 📋 Скопировать вебхук
     .test = 🐞 Тест
     .default-currency = 💸 Валюта по умолчанию
+    .manage-currencies = 💱 Управление валютами
     .placement = 🔢 Изменить позиционирование
 
     .active = { $is_active ->
@@ -460,6 +461,7 @@ btn-subscription =
     }
     .pay = 💳 Оплатить
     .get = 🎁 Получить бесплатно
+    .send-receipt = 🧾 Отправить чек
     .back-plans = ⬅️ Назад к выбору плана
     .back-duration = ⬅️ Изменить длительность
     .back-payment-method = ⬅️ Изменить способ оплаты
@@ -483,3 +485,7 @@ btn-promocode =
     [1] 🟢
     *[0] 🔴
     } Статус
+
+btn-manual-payment =
+    .approve = ✅ Подтвердить
+    .reject = ❌ Отклонить

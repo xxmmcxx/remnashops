@@ -216,10 +216,19 @@ class RemnawaveImpl(Remnawave):
         plan: Optional[PlanSnapshotDto],
         subscription: Optional[SubscriptionDto],
     ) -> CreateUserRequestDto:
+        is_trial = False
+
+        if plan:
+            is_trial = plan.is_trial
+        elif subscription:
+            is_trial = subscription.is_trial
+
+        username = user.remna_trial_name if is_trial else user.remna_name
+
         if subscription:
             return CreateUserRequestDto(
                 uuid=subscription.user_remna_id,
-                username=user.remna_name,
+                username=username,
                 telegram_id=user.telegram_id,
                 expire_at=subscription.expire_at,
                 traffic_limit_strategy=subscription.traffic_limit_strategy,
@@ -233,7 +242,7 @@ class RemnawaveImpl(Remnawave):
 
         if plan:
             return CreateUserRequestDto(
-                username=user.remna_name,
+                username=username,
                 telegram_id=user.telegram_id,
                 expire_at=days_to_datetime(plan.duration),
                 traffic_limit_strategy=plan.traffic_limit_strategy,

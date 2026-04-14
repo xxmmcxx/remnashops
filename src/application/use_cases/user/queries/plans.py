@@ -63,6 +63,21 @@ class GetAvailableTrial(Interactor[UserDto, Optional[PlanDto]]):
         self.plan_dao = plan_dao
 
     async def _execute(self, actor: UserDto, data: UserDto) -> Optional[PlanDto]:  # noqa: C901
+        if not data.is_trial_available:
+            has_any_subscription = await self.user_dao.has_any_subscription(
+                data.telegram_id,
+                include_trial=True,
+            )
+
+            if has_any_subscription:
+                logger.info(f"{data.log} Trial is not available for user")
+                return None
+
+            logger.warning(
+                f"{data.log} Trial flag is disabled without subscription history, "
+                "continuing with eligibility check"
+            )
+
         active_trials = await self.plan_dao.get_active_trial_plans()
 
         if not active_trials:
@@ -78,8 +93,10 @@ class GetAvailableTrial(Interactor[UserDto, Optional[PlanDto]]):
         priority_map = {
             PlanAvailability.ALLOWED: 4,
             PlanAvailability.INVITED: 3,
+            PlanAvailability.EXISTING: 2,
             PlanAvailability.NEW: 2,
             PlanAvailability.ALL: 1,
+            PlanAvailability.LINK: 1,
         }
 
         eligible_plans: list[tuple[int, PlanDto]] = []
@@ -94,10 +111,15 @@ class GetAvailableTrial(Interactor[UserDto, Optional[PlanDto]]):
                 case PlanAvailability.INVITED:
                     if is_invited:
                         is_eligible = True
+                case PlanAvailability.EXISTING:
+                    if has_subscription:
+                        is_eligible = True
                 case PlanAvailability.NEW:
                     if not has_subscription:
                         is_eligible = True
                 case PlanAvailability.ALL:
+                    is_eligible = True
+                case PlanAvailability.LINK:
                     is_eligible = True
 
             if is_eligible:

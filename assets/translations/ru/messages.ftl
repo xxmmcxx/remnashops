@@ -780,7 +780,10 @@ msg-remnashop-main = <b>🛍 RemnaShop { $version ->
 *[HAS] { $version }
 }</b>
 
-msg-admins-main = <b>👮‍♂️ Администраторы</b>
+msg-admins-main =
+    <b>👮‍♂️ Администраторы</b>
+
+    Отправьте Telegram ID пользователя, чтобы выдать роль администратора.
 
 
 # Menu editor
@@ -832,6 +835,7 @@ msg-menu-editor-button-payload =
 msg-gateways-main = <b>🌐 Платежные системы</b>
 msg-gateways-settings = <b>🌐 Конфигурация { gateway-type }</b>
 msg-gateways-default-currency = <b>💸 Валюта по умолчанию</b>
+msg-gateways-currencies = <b>💱 Управление валютами</b>
 msg-gateways-placement = <b>🔢 Изменить позиционирование</b>
 
 msg-gateways-field =
@@ -1165,6 +1169,19 @@ msg-subscription-confirm =
     [CHANGE] <i>⚠️ Текущая подписка будет <u>заменена</u> выбранной без пересчета оставшегося срока.</i>
     *[OTHER] { empty }
     }
+
+msg-subscription-manual-payment =
+    <blockquote>
+    <b>💳 Оплата переводом на карту</b>
+    { $manual_payment_description }
+    </blockquote>
+
+msg-subscription-manual-receipt =
+    <b>🧾 Отправьте чек оплаты</b>
+
+    { msg-subscription-manual-payment }
+
+    Отправьте чек одним сообщением: текстом или фотографией.
 
 msg-subscription-trial =
     <b>✅ Пробная подписка успешно получена!</b>

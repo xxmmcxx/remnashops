@@ -21,6 +21,7 @@ from src.telegram.states import DashboardRemnashop, RemnashopGateways
 from src.telegram.widgets import Banner, I18nFormat, IgnoreUpdate
 
 from .getters import (
+    currency_manage_getter,
     currency_getter,
     field_getter,
     gateway_getter,
@@ -29,6 +30,7 @@ from .getters import (
 )
 from .handlers import (
     on_active_toggle,
+    on_currency_availability_toggle,
     on_default_currency_select,
     on_field_input,
     on_field_select,
@@ -165,6 +167,13 @@ default_currency = Window(
     ),
     Row(
         SwitchTo(
+            text=I18nFormat("btn-gateway.manage-currencies"),
+            id="manage_currencies",
+            state=RemnashopGateways.CURRENCY_MANAGE,
+        ),
+    ),
+    Row(
+        SwitchTo(
             text=I18nFormat("btn-back.general"),
             id="back",
             state=RemnashopGateways.MAIN,
@@ -173,6 +182,36 @@ default_currency = Window(
     IgnoreUpdate(),
     state=RemnashopGateways.CURRENCY,
     getter=currency_getter,
+)
+
+currency_manage = Window(
+    Banner(BannerName.DASHBOARD),
+    I18nFormat("msg-gateways-currencies"),
+    Column(
+        Select(
+            text=I18nFormat(
+                "btn-gateway.default-currency-choice",
+                symbol=F["item"]["symbol"],
+                currency=F["item"]["currency"],
+                enabled=F["item"]["enabled"],
+            ),
+            id="currency_toggle",
+            item_id_getter=lambda item: item["currency"],
+            items="currency_list",
+            type_factory=Currency,
+            on_click=on_currency_availability_toggle,
+        ),
+    ),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-back.general"),
+            id="back",
+            state=RemnashopGateways.CURRENCY,
+        ),
+    ),
+    IgnoreUpdate(),
+    state=RemnashopGateways.CURRENCY_MANAGE,
+    getter=currency_manage_getter,
 )
 
 placement = Window(
@@ -211,5 +250,6 @@ router = Dialog(
     gateway_settings,
     gateway_field,
     default_currency,
+    currency_manage,
     placement,
 )

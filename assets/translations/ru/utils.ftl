@@ -310,6 +310,7 @@ gateway-type = { $gateway_type ->
     [ROBOKASSA] RoboKassa
     [URLPAY] UrlPay
     [WATA] WATA
+    [CARD2CARD] Карта-карта
     *[OTHER] { $gateway_type }
 }
 

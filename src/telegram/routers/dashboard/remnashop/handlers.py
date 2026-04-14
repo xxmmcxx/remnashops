@@ -1,5 +1,6 @@
-from aiogram.types import CallbackQuery
-from aiogram_dialog import DialogManager
+from aiogram.types import CallbackQuery, Message
+from aiogram_dialog import DialogManager, ShowMode
+from aiogram_dialog.widgets.input import MessageInput
 from aiogram_dialog.widgets.kbd import Button
 from dishka import FromDishka
 from dishka.integrations.aiogram_dialog import inject
@@ -8,11 +9,12 @@ from loguru import logger
 from src.application.common import Notifier, Redirect
 from src.application.dto import MediaDescriptorDto, MessagePayloadDto, UserDto
 from src.application.use_cases.misc.queries.logs import GetLogs
-from src.application.use_cases.user.commands.roles import RevokeRole
+from src.application.use_cases.user.commands.roles import RevokeRole, SetUserRole, SetUserRoleDto
 from src.core.constants import LOG_DIR, USER_KEY
-from src.core.enums import MediaType
-from src.core.exceptions import LogsToFileDisabledError
+from src.core.enums import MediaType, Role
+from src.core.exceptions import LogsToFileDisabledError, PermissionDeniedError, UserNotFoundError
 from src.core.logger import LOG_FILENAME
+from src.core.utils.validators import parse_int
 from src.telegram.routers.dashboard.users.user.handlers import start_user_window
 from src.telegram.utils import is_double_click
 
@@ -88,3 +90,30 @@ async def on_role_revoke(
 
     await revoke_role(user, target_telegram_id)
     await redirect.to_main_menu(target_telegram_id)
+
+
+@inject
+async def on_admin_add_input(
+    message: Message,
+    widget: MessageInput,
+    dialog_manager: DialogManager,
+    notifier: FromDishka[Notifier],
+    set_user_role: FromDishka[SetUserRole],
+) -> None:
+    del widget
+    dialog_manager.show_mode = ShowMode.EDIT
+    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+
+    target_telegram_id = parse_int((message.text or "").strip())
+    if target_telegram_id is None:
+        await notifier.notify_user(user=user, i18n_key="ntf-common.invalid-value")
+        return
+
+    try:
+        await set_user_role(user, SetUserRoleDto(target_telegram_id, Role.ADMIN))
+        await notifier.notify_user(user=user, i18n_key="ntf-common.value-updated")
+        logger.info(f"{user.log} Added admin role for user '{target_telegram_id}'")
+    except UserNotFoundError:
+        await notifier.notify_user(user=user, i18n_key="ntf-user.not-found")
+    except PermissionDeniedError:
+        await notifier.notify_user(user=user, i18n_key="ntf-error.permission-denied")

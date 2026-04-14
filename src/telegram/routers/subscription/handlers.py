@@ -1,16 +1,31 @@
+from html import escape
 from typing import Optional, TypedDict, cast
+from uuid import UUID
 
 from adaptix import Retort
-from aiogram.types import CallbackQuery
-from aiogram_dialog import DialogManager
+from aiogram.types import CallbackQuery, Message
+from aiogram_dialog import DialogManager, ShowMode, StartMode
+from aiogram_dialog.widgets.input import MessageInput
 from aiogram_dialog.widgets.kbd import Button, Select
 from dishka import FromDishka
 from dishka.integrations.aiogram_dialog import inject
 from loguru import logger
 
 from src.application.common import Notifier
-from src.application.common.dao import PaymentGatewayDao, PlanDao, SettingsDao, SubscriptionDao
-from src.application.dto import PlanDto, PlanSnapshotDto, UserDto
+from src.application.common.dao import (
+    PaymentGatewayDao,
+    PlanDao,
+    SettingsDao,
+    SubscriptionDao,
+    TransactionDao,
+)
+from src.application.dto import (
+    MediaDescriptorDto,
+    MessagePayloadDto,
+    PlanDto,
+    PlanSnapshotDto,
+    UserDto,
+)
 from src.application.services import PricingService
 from src.application.use_cases.gateways.commands.payment import (
     CreatePayment,
@@ -21,18 +36,31 @@ from src.application.use_cases.gateways.commands.payment import (
 from src.application.use_cases.plan.queries.match import MatchPlan, MatchPlanDto
 from src.application.use_cases.user.queries.plans import GetAvailablePlans
 from src.core.constants import PAYMENT_PREFIX, USER_KEY
-from src.core.enums import PaymentGatewayType, PurchaseType, TransactionStatus
-from src.telegram.states import Subscription
+from src.core.enums import Currency, MediaType, PaymentGatewayType, PurchaseType, TransactionStatus
+from src.telegram.keyboards import get_manual_payment_moderation_keyboard
+from src.telegram.states import MainMenu, Subscription
 
 PAYMENT_CACHE_KEY = "payment_cache"
 CURRENT_DURATION_KEY = "selected_duration"
 CURRENT_METHOD_KEY = "selected_payment_method"
+MAX_RECEIPT_TEXT_LENGTH = 700
 
 
 class CachedPaymentData(TypedDict):
     payment_id: str
     payment_url: Optional[str]
     final_pricing: str
+
+
+def _normalize_gateway_type(value: object) -> PaymentGatewayType:
+    if isinstance(value, PaymentGatewayType):
+        return value
+    return PaymentGatewayType(str(value))
+
+
+def _normalize_enabled_currencies(currencies: list[Currency]) -> list[Currency]:
+    ordered = [currency for currency in Currency if currency in currencies]
+    return ordered or [Currency.XTR]
 
 
 def _get_cache_key(duration: int, gateway_type: PaymentGatewayType) -> str:
@@ -104,6 +132,7 @@ async def on_purchase_type_select(
     dialog_manager: DialogManager,
     retort: FromDishka[Retort],
     subscription_dao: FromDishka[SubscriptionDao],
+    settings_dao: FromDishka[SettingsDao],
     payment_gateway_dao: FromDishka[PaymentGatewayDao],
     notifier: FromDishka[Notifier],
     match_plan: FromDishka[MatchPlan],
@@ -111,7 +140,13 @@ async def on_purchase_type_select(
 ) -> None:
     user: UserDto = dialog_manager.middleware_data[USER_KEY]
     plans: list[PlanDto] = await get_available_plans.system(user)
-    gateways = await payment_gateway_dao.get_active()
+    settings = await settings_dao.get()
+    enabled_currencies = _normalize_enabled_currencies(settings.access.available_currencies)
+    gateways = [
+        gateway
+        for gateway in await payment_gateway_dao.get_active()
+        if gateway.currency in enabled_currencies
+    ]
     dialog_manager.dialog_data["purchase_type"] = purchase_type
     dialog_manager.dialog_data.pop(CURRENT_DURATION_KEY, None)
 
@@ -160,6 +195,7 @@ async def on_subscription_plans(  # noqa: C901
     dialog_manager: DialogManager,
     retort: FromDishka[Retort],
     subscription_dao: FromDishka[SubscriptionDao],
+    settings_dao: FromDishka[SettingsDao],
     payment_gateway_dao: FromDishka[PaymentGatewayDao],
     pricing_service: FromDishka[PricingService],
     notifier: FromDishka[Notifier],
@@ -171,7 +207,13 @@ async def on_subscription_plans(  # noqa: C901
     logger.info(f"{user.log} Opened subscription plans menu")
 
     plans: list[PlanDto] = await get_available_plans.system(user)
-    gateways = await payment_gateway_dao.get_active()
+    settings = await settings_dao.get()
+    enabled_currencies = _normalize_enabled_currencies(settings.access.available_currencies)
+    gateways = [
+        gateway
+        for gateway in await payment_gateway_dao.get_active()
+        if gateway.currency in enabled_currencies
+    ]
 
     if not callback.data:
         raise ValueError("Callback data is empty")
@@ -312,8 +354,23 @@ async def on_duration_select(
 
     plan = retort.load(raw_plan, PlanDto)
     settings = await settings_dao.get()
-    gateways = await payment_gateway_dao.get_active()
-    currency = settings.default_currency
+    enabled_currencies = _normalize_enabled_currencies(settings.access.available_currencies)
+    gateways = [
+        gateway
+        for gateway in await payment_gateway_dao.get_active()
+        if gateway.currency in enabled_currencies
+    ]
+
+    if not gateways:
+        logger.warning(f"{user.log} No active payment gateways for enabled currencies")
+        await notifier.notify_user(user, i18n_key="ntf-subscription.gateways-unavailable")
+        return
+
+    currency = (
+        settings.default_currency
+        if settings.default_currency in enabled_currencies
+        else enabled_currencies[0]
+    )
     price = pricing_service.calculate(
         user,
         price=plan.get_duration(selected_duration).get_price(currency),  # type: ignore[union-attr]
@@ -421,7 +478,108 @@ async def on_get_subscription(
     dialog_manager: DialogManager,
     process_payment: FromDishka[ProcessPayment],
 ) -> None:
+    del callback, widget
     user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    payment_id = dialog_manager.dialog_data["payment_id"]
+    payment_id = UUID(str(dialog_manager.dialog_data["payment_id"]))
     logger.info(f"{user.log} Getted free subscription '{payment_id}'")
     await process_payment.system(ProcessPaymentDto(payment_id, TransactionStatus.COMPLETED))
+
+
+@inject
+async def on_manual_receipt_start(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+) -> None:
+    del callback, widget
+    await dialog_manager.switch_to(state=Subscription.MANUAL_RECEIPT)
+
+
+@inject
+async def on_manual_receipt_input(
+    message: Message,
+    widget: MessageInput,
+    dialog_manager: DialogManager,
+    notifier: FromDishka[Notifier],
+    transaction_dao: FromDishka[TransactionDao],
+) -> None:
+    del widget
+    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+
+    try:
+        selected_payment_method = _normalize_gateway_type(
+            dialog_manager.dialog_data[CURRENT_METHOD_KEY]
+        )
+    except (KeyError, ValueError):
+        await notifier.notify_user(user=user, i18n_key="ntf-subscription.manual-invalid-method")
+        return
+
+    if selected_payment_method != PaymentGatewayType.CARD2CARD:
+        await notifier.notify_user(user=user, i18n_key="ntf-subscription.manual-not-required")
+        return
+
+    try:
+        payment_id = UUID(str(dialog_manager.dialog_data["payment_id"]))
+    except (KeyError, ValueError):
+        await notifier.notify_user(
+            user=user,
+            i18n_key="ntf-subscription.manual-invalid-payment-id",
+        )
+        return
+
+    transaction = await transaction_dao.get_by_payment_id(payment_id)
+
+    if not transaction or transaction.user_telegram_id != user.telegram_id:
+        await notifier.notify_user(
+            user=user,
+            i18n_key="ntf-subscription.manual-pending-not-found",
+        )
+        return
+
+    if transaction.status != TransactionStatus.PENDING:
+        await notifier.notify_user(
+            user=user,
+            i18n_key="ntf-subscription.manual-already-processed",
+        )
+        return
+
+    is_photo = bool(message.photo)
+    raw_receipt_text = message.caption if is_photo else message.text
+    receipt_text = (raw_receipt_text or "").strip()
+
+    if not is_photo and not receipt_text:
+        await notifier.notify_user(user=user, i18n_key="ntf-subscription.manual-receipt-format")
+        return
+
+    if not receipt_text:
+        receipt_text = "(photo without caption)"
+
+    receipt_text = receipt_text[:MAX_RECEIPT_TEXT_LENGTH]
+    username = f"@{user.username}" if user.username else "-"
+
+    admin_payload = MessagePayloadDto(
+        i18n_key="ntf-subscription.manual-admin-review",
+        i18n_kwargs={
+            "user_name": escape(user.name),
+            "username": escape(username),
+            "telegram_id": user.telegram_id,
+            "payment_id": str(payment_id),
+            "receipt": escape(receipt_text),
+        },
+        reply_markup=get_manual_payment_moderation_keyboard(str(payment_id)),
+        delete_after=None,
+    )
+
+    if is_photo and message.photo:
+        admin_payload.media = MediaDescriptorDto(kind="file_id", value=message.photo[-1].file_id)
+        admin_payload.media_type = MediaType.PHOTO
+
+    await notifier.notify_admins(admin_payload)
+
+    await notifier.notify_user(user=user, i18n_key="ntf-subscription.manual-receipt-sent")
+
+    await dialog_manager.start(
+        state=MainMenu.MAIN,
+        mode=StartMode.RESET_STACK,
+        show_mode=ShowMode.DELETE_AND_SEND,
+    )

@@ -7,7 +7,7 @@ from src.application.common import Interactor
 from src.application.common.dao import UserDao
 from src.application.common.policy import Permission
 from src.application.dto import UserDto
-from src.core.constants import REMNASHOP_PREFIX
+from src.core.constants import REMNASHOP_PREFIX, REMNASHOP_TEST_PREFIX
 
 
 @dataclass(frozen=True)
@@ -59,7 +59,7 @@ class SearchUsers(Interactor[SearchUsersDto, list[UserDto]]):
                 else:
                     logger.warning(f"Searched by Telegram ID '{telegram_id}', user not found")
 
-            elif query.startswith(REMNASHOP_PREFIX):
+            elif query.startswith(REMNASHOP_PREFIX) or query.startswith(REMNASHOP_TEST_PREFIX):
                 try:
                     telegram_id = int(query.split("_", maxsplit=1)[1])
                     user = await self.user_dao.get_by_telegram_id(telegram_id)

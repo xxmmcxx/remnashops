@@ -32,6 +32,7 @@ class AccessSettingsDto(TrackableMixin):
     mode: AccessMode = AccessMode.PUBLIC
     registration_allowed: bool = True
     payments_allowed: bool = True
+    available_currencies: list[Currency] = field(default_factory=lambda: list(Currency))
 
     def can_register(self) -> bool:
         if self.mode == AccessMode.RESTRICTED:

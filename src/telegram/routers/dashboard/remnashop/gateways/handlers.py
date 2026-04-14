@@ -16,7 +16,10 @@ from src.application.use_cases.gateways.commands.configuration import (
     UpdatePaymentGatewaySettingsDto,
 )
 from src.application.use_cases.gateways.commands.payment import CreateTestPayment
-from src.application.use_cases.settings.commands.currency import UpdateDefaultCurrency
+from src.application.use_cases.settings.commands.currency import (
+    ToggleAvailableCurrency,
+    UpdateDefaultCurrency,
+)
 from src.core.constants import USER_KEY
 from src.core.enums import Currency
 from src.core.exceptions import GatewayNotConfiguredError
@@ -73,13 +76,23 @@ async def on_gateway_test(
 
     try:
         payment = await create_test_payment(user, gateway.type)
-        await notifier.notify_user(
-            user=user,
-            payload=MessagePayloadDto(
-                i18n_key="ntf-gateway.test-payment-created",
-                i18n_kwargs={"url": payment.url},
-            ),
-        )
+
+        if payment.url:
+            await notifier.notify_user(
+                user=user,
+                payload=MessagePayloadDto(
+                    i18n_key="ntf-gateway.test-payment-created",
+                    i18n_kwargs={"url": payment.url},
+                ),
+            )
+        else:
+            await notifier.notify_user(
+                user=user,
+                payload=MessagePayloadDto(
+                    i18n_key="ntf-gateway.test-payment-created-no-url",
+                    i18n_kwargs={"payment_id": str(payment.id)},
+                ),
+            )
 
     except Exception as e:
         logger.exception(
@@ -157,9 +170,30 @@ async def on_default_currency_select(
     dialog_manager: DialogManager,
     selected_currency: Currency,
     update_default_currency: FromDishka[UpdateDefaultCurrency],
+    notifier: FromDishka[Notifier],
 ) -> None:
     user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    await update_default_currency(user, selected_currency)
+    try:
+        await update_default_currency(user, selected_currency)
+    except ValueError:
+        await notifier.notify_user(user=user, i18n_key="ntf-common.invalid-value")
+
+
+@inject
+async def on_currency_availability_toggle(
+    callback: CallbackQuery,
+    widget: Select,
+    dialog_manager: DialogManager,
+    selected_currency: Currency,
+    toggle_available_currency: FromDishka[ToggleAvailableCurrency],
+    notifier: FromDishka[Notifier],
+) -> None:
+    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+
+    try:
+        await toggle_available_currency(user, selected_currency)
+    except ValueError:
+        await notifier.notify_user(user=user, i18n_key="ntf-common.invalid-value")
 
 
 @inject
