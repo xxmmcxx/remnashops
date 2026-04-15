@@ -38,6 +38,8 @@ from src.application.use_cases.plan.commands.edit import (
     UpdatePlanNameDto,
     UpdatePlanPrice,
     UpdatePlanPriceDto,
+    UpdatePlanPublicCode,
+    UpdatePlanPublicCodeDto,
     UpdatePlanTag,
     UpdatePlanTagDto,
     UpdatePlanTraffic,
@@ -249,6 +251,36 @@ async def on_name_input(
 
     try:
         updated_plan = await update_plan_name(user, UpdatePlanNameDto(current_plan, message.text))
+        dialog_manager.dialog_data[PlanDto.__name__] = retort.dump(updated_plan)
+        await dialog_manager.switch_to(state=RemnashopPlans.CONFIGURATOR)
+
+    except ValueError:
+        await notifier.notify_user(user, i18n_key="ntf-common.invalid-value")
+
+
+@inject
+async def on_prefix_input(
+    message: Message,
+    widget: MessageInput,
+    dialog_manager: DialogManager,
+    retort: FromDishka[Retort],
+    notifier: FromDishka[Notifier],
+    update_plan_public_code: FromDishka[UpdatePlanPublicCode],
+) -> None:
+    dialog_manager.show_mode = ShowMode.EDIT
+    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+
+    if message.text is None:
+        await notifier.notify_user(user, i18n_key="ntf-common.invalid-value")
+        return
+
+    current_plan = retort.load(dialog_manager.dialog_data[PlanDto.__name__], PlanDto)
+
+    try:
+        updated_plan = await update_plan_public_code(
+            user,
+            UpdatePlanPublicCodeDto(current_plan, message.text),
+        )
         dialog_manager.dialog_data[PlanDto.__name__] = retort.dump(updated_plan)
         await dialog_manager.switch_to(state=RemnashopPlans.CONFIGURATOR)
 

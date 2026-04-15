@@ -34,6 +34,7 @@ from .getters import (
     internal_squads_getter,
     name_getter,
     plans_getter,
+    prefix_getter,
     price_getter,
     prices_getter,
     squads_getter,
@@ -64,6 +65,7 @@ from .handlers import (
     on_plan_delete,
     on_plan_move,
     on_plan_select,
+    on_prefix_input,
     on_price_input,
     on_squads,
     on_strategy_select,
@@ -207,6 +209,13 @@ configurator = Window(
             state=RemnashopPlans.NAME,
         ),
         SwitchTo(
+            text=I18nFormat("btn-plans.prefix"),
+            id="prefix",
+            state=RemnashopPlans.PREFIX,
+        ),
+    ),
+    Row(
+        SwitchTo(
             text=I18nFormat("btn-plans.description"),
             id="description",
             state=RemnashopPlans.DESCRIPTION,
@@ -323,6 +332,22 @@ name = Window(
     IgnoreUpdate(),
     state=RemnashopPlans.NAME,
     getter=name_getter,
+)
+
+prefix = Window(
+    Banner(BannerName.DASHBOARD),
+    I18nFormat("msg-plan-prefix"),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-back.general"),
+            id="back",
+            state=RemnashopPlans.CONFIGURATOR,
+        ),
+    ),
+    MessageInput(func=on_prefix_input),
+    IgnoreUpdate(),
+    state=RemnashopPlans.PREFIX,
+    getter=prefix_getter,
 )
 
 description = Window(
@@ -705,6 +730,7 @@ router = Dialog(
     plans_export,
     configurator,
     name,
+    prefix,
     description,
     tag,
     plan_type,

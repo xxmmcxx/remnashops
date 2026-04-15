@@ -11,6 +11,7 @@ from src.application.dto import UserDto
 from src.application.services import BotService
 from src.application.use_cases.misc.queries.menu import GetMenuData
 from src.core.config import AppConfig
+from src.core.enums import SubscriptionStatus
 from src.core.exceptions import MenuRenderError
 from src.core.utils.i18n_helpers import (
     i18n_format_device_limit,
@@ -235,4 +236,104 @@ async def invite_about_getter(
         "accrual_strategy": settings.referral.accrual_strategy,
         "identical_reward": identical_reward,
         "max_level": max_level,
+    }
+
+
+def _subscription_label_emoji(status: SubscriptionStatus) -> str:
+    if status == SubscriptionStatus.ACTIVE:
+        return "🟢"
+    if status == SubscriptionStatus.EXPIRED:
+        return "⌛"
+    if status == SubscriptionStatus.LIMITED:
+        return "🟠"
+    if status == SubscriptionStatus.DISABLED:
+        return "🔴"
+    return "⚪"
+
+
+@inject
+async def my_subscriptions_getter(
+    dialog_manager: DialogManager,
+    user: UserDto,
+    i18n: FromDishka[TranslatorRunner],
+    subscription_dao: FromDishka[SubscriptionDao],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    subscriptions = await subscription_dao.get_all_by_user(user.telegram_id)
+    visible_subscriptions = [
+        sub for sub in subscriptions if sub.status != SubscriptionStatus.DELETED
+    ]
+
+    formatted_subscriptions = []
+    for sub in visible_subscriptions:
+        plan_name = i18n.get(sub.plan_snapshot.name)
+        status = sub.current_status
+        status_text = i18n.get("subscription-status", subscription_status=status)
+        formatted_subscriptions.append(
+            {
+                "id": sub.id,
+                "label": f"{_subscription_label_emoji(status)} {plan_name} - {status_text}",
+            }
+        )
+
+    return {
+        "subscriptions": formatted_subscriptions,
+        "has_subscriptions": bool(formatted_subscriptions),
+    }
+
+
+@inject
+async def my_subscription_getter(
+    dialog_manager: DialogManager,
+    user: UserDto,
+    config: AppConfig,
+    i18n: FromDishka[TranslatorRunner],
+    subscription_dao: FromDishka[SubscriptionDao],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    selected_subscription_id = dialog_manager.dialog_data.get("selected_subscription_id")
+
+    subscriptions = await subscription_dao.get_all_by_user(user.telegram_id)
+    visible_subscriptions = [
+        sub for sub in subscriptions if sub.status != SubscriptionStatus.DELETED
+    ]
+
+    selected_subscription = next(
+        (
+            sub
+            for sub in visible_subscriptions
+            if sub.id is not None and str(sub.id) == str(selected_subscription_id)
+        ),
+        None,
+    )
+
+    if not selected_subscription:
+        return {
+            "exists": False,
+            "is_mini_app": config.bot.is_mini_app,
+            "connection_url": "",
+            "subscription_url": "-",
+            "connectable": False,
+            "plan_name": "-",
+            "status": SubscriptionStatus.DELETED,
+            "expire_time": "-",
+            "traffic_limit": "-",
+            "device_limit": "-",
+        }
+
+    current_subscription = await subscription_dao.get_current(user.telegram_id)
+    status = selected_subscription.current_status
+
+    return {
+        "exists": True,
+        "is_current": bool(current_subscription and current_subscription.id == selected_subscription.id),
+        "is_mini_app": config.bot.is_mini_app,
+        "connection_url": config.bot.mini_app_url or selected_subscription.url,
+        "subscription_url": selected_subscription.url,
+        "connectable": status == SubscriptionStatus.ACTIVE,
+        "plan_name": i18n.get(selected_subscription.plan_snapshot.name),
+        "status": status,
+        "expire_time": i18n_format_expire_time(selected_subscription.expire_at),
+        "traffic_limit": i18n_format_traffic_limit(selected_subscription.traffic_limit),
+        "device_limit": i18n_format_device_limit(selected_subscription.device_limit),
     }

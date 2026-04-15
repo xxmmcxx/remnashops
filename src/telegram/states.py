@@ -9,6 +9,8 @@ class MainMenu(StatesGroup):
     DEVICE_CONFIRM_DELETE = State()
     DEVICE_CONFIRM_DELETE_ALL = State()
     DEVICE_CONFIRM_REISSUE = State()
+    MY_SUBSCRIPTIONS = State()
+    MY_SUBSCRIPTION = State()
     INVITE = State()
     INVITE_ABOUT = State()
 
@@ -112,6 +114,8 @@ class DashboardRemnashop(StatesGroup):
     MAIN = State()
     ADMINS = State()
     ADVERTISING = State()
+    BANNER = State()
+    QR_BACKGROUND = State()
 
 
 class RemnashopReferral(StatesGroup):
@@ -144,6 +148,7 @@ class RemnashopPlans(StatesGroup):
     EXPORT = State()
     CONFIGURATOR = State()
     NAME = State()
+    PREFIX = State()
     DESCRIPTION = State()
     TAG = State()
     TYPE = State()

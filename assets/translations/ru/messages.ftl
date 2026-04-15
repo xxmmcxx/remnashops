@@ -76,6 +76,33 @@ msg-menu-devices-confirm-delete =
 msg-menu-devices-confirm-delete-all =
     🗑 Удалить <b>все устройства</b>?
 
+msg-menu-my-subs =
+    <b>📦 Мои подписки</b>
+
+    Выберите подписку ниже, чтобы открыть ее данные и ссылку подключения.
+
+msg-menu-my-subs-empty =
+    У вас пока нет сохраненных подписок.
+
+msg-menu-my-subs-item =
+    <b>📦 Подписка: { $plan_name }</b>
+
+    <blockquote>
+    • <b>Статус</b>: { subscription-status }
+    • <b>Действует до</b>: { $expire_time }
+    • <b>Трафик</b>: { $traffic_limit }
+    • <b>Устройства</b>: { $device_limit }
+    • <b>Ссылка</b>: <code>{ $subscription_url }</code>
+    </blockquote>
+
+    { $is_current ->
+        [1] 🔹 Это текущая активная подписка
+        *[0] { empty }
+    }
+
+msg-menu-my-subs-item-empty =
+    Подписка не найдена. Вернитесь к списку и выберите другую.
+
 msg-menu-invite =
     <b>👥 Пригласить друзей</b>
     
@@ -785,6 +812,34 @@ msg-admins-main =
 
     Отправьте Telegram ID пользователя, чтобы выдать роль администратора.
 
+msg-remnashop-global-banner =
+    <b>🖼️ Глобальный баннер</b>
+
+    <blockquote>
+    • <b>Статус</b>: { $enabled ->
+        [1] 🟢 Включен
+        *[0] 🔴 Выключен
+    }
+    • <b>URL</b>: <code>{ $image_url }</code>
+    • <b>Загруженный файл</b>: <code>{ $image_path }</code>
+    </blockquote>
+
+    Отправьте прямую ссылку на изображение (https) или загрузите изображение в чат.
+
+msg-remnashop-qr-background =
+    <b>🖼️ Фон для QR-кода подписки</b>
+
+    <blockquote>
+    • <b>Статус</b>: { $enabled ->
+        [1] 🟢 Включен
+        *[0] 🔴 Выключен
+    }
+    • <b>URL изображения</b>: <code>{ $image_url }</code>
+    </blockquote>
+
+    Отправьте прямую ссылку на изображение (https) для фона.
+    Чтобы удалить фон, отправьте <code>/clear</code>.
+
 
 # Menu editor
 msg-menu-editor-main =
@@ -944,6 +999,7 @@ msg-plan-configurator =
 
     <blockquote>
     • <b>Название</b>: { $name }
+    • <b>Префикс</b>: <code>{ $public_code_display }</code>
     • <b>Тип</b>: { plan-type } { $is_trial ->
     [1] (Пробник)
     *[0] { space }
@@ -980,6 +1036,20 @@ msg-plan-name =
     }
 
     Введите уникальное название плана или ключ перевода (максимум 32 символа).
+
+msg-plan-prefix =
+    <b>🧬 Изменить префикс подключения</b>
+
+    { $prefix ->
+    [0] { space }
+    *[HAS]
+    <blockquote>
+    Текущий префикс: <code>{ $prefix }</code>
+    </blockquote>
+    }
+
+    Введите новый уникальный префикс для данного плана.
+    Разрешены: строчные латинские буквы, цифры и <code>_</code> (от 3 до 24 символов).
 
 msg-plan-description =
     <b>💬 Изменить описание</b>
@@ -1187,6 +1257,18 @@ msg-subscription-trial =
     <b>✅ Пробная подписка успешно получена!</b>
 
     { msg-subscription-new-success }
+
+msg-subscription-connection-url =
+    <b>🔗 Ваша ссылка подписки:</b>
+    <blockquote><code>{ $subscription_url }</code></blockquote>
+
+msg-subscription-raw-configs-title =
+    <b>🧩 Raw конфиги ({ $current }/{ $total })</b>
+
+msg-subscription-raw-configs-sent = ✅ Raw конфиги отправлены
+msg-subscription-raw-configs-empty = ⚠️ Не удалось найти raw конфиги по вашей ссылке.
+msg-subscription-raw-configs-unavailable = ❌ Не удалось получить raw конфиги. Попробуйте позже.
+msg-subscription-raw-configs-missing = ⚠️ Активная подписка не найдена.
 
 msg-subscription-success =
     <b>✅ Оплата прошла успешно!</b>

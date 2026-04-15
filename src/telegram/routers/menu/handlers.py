@@ -245,3 +245,15 @@ async def on_invite(
     if settings.referral.enable:
         await dialog_manager.switch_to(state=MainMenu.INVITE)
     return
+
+
+@inject
+async def on_my_subscription_open(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+) -> None:
+    del callback, widget
+    selected_subscription_id = dialog_manager.item_id  # type: ignore[attr-defined]
+    dialog_manager.dialog_data["selected_subscription_id"] = str(selected_subscription_id)
+    await dialog_manager.switch_to(state=MainMenu.MY_SUBSCRIPTION)

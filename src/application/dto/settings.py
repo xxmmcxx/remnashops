@@ -131,10 +131,25 @@ class MenuButtonDto(TrackableMixin):
 
 
 @dataclass(kw_only=True)
+class QrBackgroundSettingsDto(TrackableMixin):
+    enabled: bool = False
+    image_url: Optional[str] = None
+
+
+@dataclass(kw_only=True)
+class GlobalBannerSettingsDto(TrackableMixin):
+    enabled: bool = False
+    image_url: Optional[str] = None
+    image_path: Optional[str] = None
+
+
+@dataclass(kw_only=True)
 class MenuSettingsDto(TrackableMixin):
     buttons: list[MenuButtonDto] = field(
         default_factory=lambda: [MenuButtonDto(index=i) for i in range(1, 7)]
     )
+    global_banner: GlobalBannerSettingsDto = field(default_factory=GlobalBannerSettingsDto)
+    qr_background: QrBackgroundSettingsDto = field(default_factory=QrBackgroundSettingsDto)
 
 
 @dataclass(kw_only=True)

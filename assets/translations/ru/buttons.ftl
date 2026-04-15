@@ -44,6 +44,8 @@ btn-menu =
     .connect = 🚀 Подключиться
     .devices = 📱 Устройства
     .subscription = 💳 Подписка
+    .my-subs = 📦 Мои подписки
+    .my-subs-copy-url = 📋 Скопировать ссылку
     .invite = 👥 Пригласить
     .support = 🆘 Поддержка
     .dashboard = 🛠 Панель управления
@@ -251,6 +253,22 @@ btn-remnashop =
     .notifications = 🔔 Уведомления
     .logs = 📄 Логи
     .menu-editor = 🎛 Доп. кнопки
+    .banner = 🖼️ Глобальный баннер
+    .qr-background = 🖼️ Фон QR
+
+btn-global-banner =
+    .toggle = { $enabled ->
+    [1] 🟢 Баннер включен
+    *[0] 🔴 Баннер выключен
+    }
+    .reset = ♻️ Сбросить баннер
+
+btn-qr-background =
+    .toggle = { $enabled ->
+    [1] 🟢 Фон включен
+    *[0] 🔴 Фон выключен
+    }
+    .reset = ♻️ Сбросить фон
 
 btn-menu-editor =
     .text = 🏷️ Текст
@@ -369,6 +387,7 @@ btn-plans =
     .create = ✅ Создать план
     .delete = ❌ Удалить
     .name = 🏷️ Название
+    .prefix = 🧬 Префикс
     .description = 💬 Описание
     .description-remove = ❌ Удалить текущее описание
     .tag = 📌 Тег
@@ -466,6 +485,7 @@ btn-subscription =
     .back-duration = ⬅️ Изменить длительность
     .back-payment-method = ⬅️ Изменить способ оплаты
     .connect = 🚀 Подключиться
+    .raw-configs = 📄 Показать raw конфиги
 
     .duration = { $period } | { $final_amount -> 
     [0] 🎁

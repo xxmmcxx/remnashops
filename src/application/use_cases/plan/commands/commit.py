@@ -61,7 +61,8 @@ class CommitPlan(Interactor[PlanDto, CommitPlanResultDto]):
                 logger.warning(f"{actor.log} Plan name '{plan.name}' already exists")
                 raise PlanNameAlreadyExistsError()
 
-            plan.public_code = self.cryptographer.generate_short_code(plan.name, length=8)
+            if not plan.public_code:
+                plan.public_code = self.cryptographer.generate_short_code(plan.name, length=8)
             new_plan = await self.plan_dao.create(plan)
             await self.uow.commit()
 

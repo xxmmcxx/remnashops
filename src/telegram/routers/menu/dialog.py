@@ -31,6 +31,8 @@ from .getters import (
     invite_about_getter,
     invite_getter,
     menu_getter,
+    my_subscription_getter,
+    my_subscriptions_getter,
 )
 from .handlers import (
     on_device_delete_all_confirm,
@@ -38,6 +40,7 @@ from .handlers import (
     on_device_delete_request,
     on_get_trial,
     on_invite,
+    on_my_subscription_open,
     on_reissue_subscription_confirm,
     on_show_qr,
     on_withdraw_points,
@@ -77,6 +80,13 @@ menu = Window(
             text=I18nFormat("btn-menu.subscription"),
             id=f"{PAYMENT_PREFIX}subscription",
             state=Subscription.MAIN,
+        ),
+    ),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-menu.my-subs"),
+            id="my_subscriptions",
+            state=MainMenu.MY_SUBSCRIPTIONS,
         ),
     ),
     Row(
@@ -306,12 +316,81 @@ device_confirm_reissue = Window(
     getter=device_confirm_delete_getter,
 )
 
+my_subscriptions = Window(
+    Banner(BannerName.SUBSCRIPTION),
+    I18nFormat("msg-menu-my-subs"),
+    I18nFormat("msg-menu-my-subs-empty", when=~F["has_subscriptions"]),
+    ListGroup(
+        Row(
+            Button(
+                text=Format("{item[label]}"),
+                id="subscription",
+                on_click=on_my_subscription_open,
+            ),
+        ),
+        id="subscriptions_list",
+        item_id_getter=lambda item: item["id"],
+        items="subscriptions",
+        when=F["has_subscriptions"],
+    ),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-back.general"),
+            id="back",
+            state=MainMenu.MAIN,
+        ),
+    ),
+    IgnoreUpdate(),
+    state=MainMenu.MY_SUBSCRIPTIONS,
+    getter=my_subscriptions_getter,
+)
+
+my_subscription = Window(
+    Banner(BannerName.SUBSCRIPTION),
+    I18nFormat("msg-menu-my-subs-item-empty", when=~F["exists"]),
+    I18nFormat(
+        "msg-menu-my-subs-item",
+        plan_name=F["plan_name"],
+        subscription_status=F["status"],
+        status=F["status"],
+        expire_time=F["expire_time"],
+        traffic_limit=F["traffic_limit"],
+        device_limit=F["device_limit"],
+        subscription_url=F["subscription_url"],
+        is_current=F["is_current"],
+        when=F["exists"],
+    ),
+    Row(
+        *connect_buttons,
+        when=F["exists"] & F["connectable"],
+    ),
+    Row(
+        CopyText(
+            text=I18nFormat("btn-menu.my-subs-copy-url"),
+            copy_text=Format("{subscription_url}"),
+            when=F["exists"],
+        ),
+    ),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-back.general"),
+            id="back",
+            state=MainMenu.MY_SUBSCRIPTIONS,
+        ),
+    ),
+    IgnoreUpdate(),
+    state=MainMenu.MY_SUBSCRIPTION,
+    getter=my_subscription_getter,
+)
+
 router = Dialog(
     menu,
     devices,
     device_confirm_delete,
     device_confirm_delete_all,
     device_confirm_reissue,
+    my_subscriptions,
+    my_subscription,
     invite,
     invite_about,
 )

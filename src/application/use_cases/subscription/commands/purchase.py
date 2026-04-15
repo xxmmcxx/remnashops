@@ -152,8 +152,39 @@ class PurchaseSubscription(Interactor[PurchaseSubscriptionDto, None]):
 
         async with self.uow:
             try:
-                # 1. NEW PURCHASE (NOT TRIAL)
-                if purchase_type == PurchaseType.NEW and not has_trial:
+                # 1. CONVERT TRIAL TO PAID (CREATE NEW REMNA USER)
+                if has_trial:
+                    if not subscription:
+                        raise ValueError(
+                            f"No trial subscription found for conversion for user '{user.telegram_id}'"
+                        )
+
+                    await self.subscription_dao.update_status(
+                        subscription_id=subscription.id,  # type: ignore[arg-type]
+                        status=SubscriptionStatus.DELETED,
+                    )
+                    await self.remnawave.delete_user(subscription.user_remna_id)
+
+                    created_user = await self.remnawave.create_user(user, plan=plan)
+                    new_sub = self._build_subscription_dto(created_user, plan)
+
+                    await self.subscription_dao.create(
+                        subscription=new_sub,
+                        telegram_id=user.telegram_id,
+                    )
+                    await self.user_dao.set_trial_available(user.telegram_id, False)
+                    if user.purchase_discount:
+                        user.purchase_discount = 0
+                        await self.user_dao.update(user)
+                    await self.uow.commit()
+
+                    logger.debug(
+                        f"{actor.log} Converted trial to paid subscription for user "
+                        f"'{user.telegram_id}'"
+                    )
+
+                # 2. NEW PURCHASE (NO CURRENT TRIAL)
+                elif purchase_type == PurchaseType.NEW:
                     created_user = await self.remnawave.create_user(user, plan=plan)
                     new_sub = self._build_subscription_dto(created_user, plan)
 
@@ -171,8 +202,8 @@ class PurchaseSubscription(Interactor[PurchaseSubscriptionDto, None]):
                         f"{actor.log} Created new subscription for user '{user.telegram_id}'"
                     )
 
-                # 2. RENEW (NOT TRIAL)
-                elif purchase_type == PurchaseType.RENEW and not has_trial:
+                # 3. RENEW
+                elif purchase_type == PurchaseType.RENEW:
                     if not subscription:
                         raise ValueError(
                             f"No subscription found for renewal for user '{user.telegram_id}'"
@@ -204,8 +235,8 @@ class PurchaseSubscription(Interactor[PurchaseSubscriptionDto, None]):
                     await self.uow.commit()
                     logger.debug(f"{actor.log} Renewed subscription for user '{user.telegram_id}'")
 
-                # 3. CHANGE OR CONVERT FROM TRIAL
-                elif purchase_type == PurchaseType.CHANGE or has_trial:
+                # 4. CHANGE PLAN (KEEP CURRENT REMNA USER)
+                elif purchase_type == PurchaseType.CHANGE:
                     if not subscription:
                         raise ValueError(
                             f"No subscription found for change for user '{user.telegram_id}'"

@@ -76,6 +76,33 @@ msg-menu-devices-confirm-delete =
 msg-menu-devices-confirm-delete-all =
     🗑 <b>همه دستگاه‌ها</b> حذف شوند؟
 
+msg-menu-my-subs =
+    <b>📦 اشتراک های من</b>
+
+    یکی از اشتراک های زیر را انتخاب کنید تا اطلاعات و لینک اتصال آن باز شود.
+
+msg-menu-my-subs-empty =
+    هنوز هیچ اشتراکی برای شما ذخیره نشده است.
+
+msg-menu-my-subs-item =
+    <b>📦 اشتراک: { $plan_name }</b>
+
+    <blockquote>
+    • <b>وضعیت</b>: { subscription-status }
+    • <b>اعتبار تا</b>: { $expire_time }
+    • <b>ترافیک</b>: { $traffic_limit }
+    • <b>دستگاه ها</b>: { $device_limit }
+    • <b>لینک</b>: <code>{ $subscription_url }</code>
+    </blockquote>
+
+    { $is_current ->
+        [1] 🔹 این اشتراک فعال فعلی شماست
+        *[0] { empty }
+    }
+
+msg-menu-my-subs-item-empty =
+    اشتراک پیدا نشد. به لیست برگردید و یک مورد دیگر را انتخاب کنید.
+
 msg-menu-invite =
     <b>👥 دعوت از دوستان</b>
     
@@ -785,6 +812,34 @@ msg-admins-main =
 
     شناسه تلگرام کاربر را ارسال کنید تا نقش ادمین به او داده شود.
 
+msg-remnashop-global-banner =
+    <b>🖼️ بنر سراسری</b>
+
+    <blockquote>
+    • <b>وضعیت</b>: { $enabled ->
+        [1] 🟢 روشن
+        *[0] 🔴 خاموش
+    }
+    • <b>URL</b>: <code>{ $image_url }</code>
+    • <b>فایل آپلود شده</b>: <code>{ $image_path }</code>
+    </blockquote>
+
+    یک لینک مستقیم تصویر (https) ارسال کنید یا تصویر را مستقیم در چت آپلود کنید.
+
+msg-remnashop-qr-background =
+    <b>🖼️ پس‌زمینه QR اشتراک</b>
+
+    <blockquote>
+    • <b>وضعیت</b>: { $enabled ->
+        [1] 🟢 روشن
+        *[0] 🔴 خاموش
+    }
+    • <b>URL تصویر</b>: <code>{ $image_url }</code>
+    </blockquote>
+
+    یک لینک مستقیم تصویر (https) برای پس‌زمینه ارسال کنید.
+    برای حذف پس‌زمینه، <code>/clear</code> را ارسال کنید.
+
 
 # Menu editor
 msg-menu-editor-main =
@@ -944,6 +999,7 @@ msg-plan-configurator =
 
     <blockquote>
     • <b>نام</b>: { $name }
+    • <b>پیشوند</b>: <code>{ $public_code_display }</code>
     • <b>نوع</b>: { plan-type } { $is_trial ->
     [1] (نسخه آزمایشی)
     *[0] { space }
@@ -980,6 +1036,20 @@ msg-plan-name =
     }
 
     نام یکتای طرح یا کلید ترجمه را وارد کنید (حداکثر ۳۲ نویسه).
+
+msg-plan-prefix =
+    <b>🧬 تغییر پیشوند اتصال</b>
+
+    { $prefix ->
+    [0] { space }
+    *[HAS]
+    <blockquote>
+    پیشوند فعلی: <code>{ $prefix }</code>
+    </blockquote>
+    }
+
+    پیشوند یکتای جدید این طرح را وارد کنید.
+    فقط حروف کوچک لاتین، عدد و <code>_</code> مجاز است (بین ۳ تا ۲۴ نویسه).
 
 msg-plan-description =
     <b>💬 تغییر توضیحات</b>
@@ -1187,6 +1257,18 @@ msg-subscription-trial =
     <b>✅ اشتراک آزمایشی با موفقیت دریافت شد!</b>
 
     { msg-subscription-new-success }
+
+msg-subscription-connection-url =
+    <b>🔗 لینک اشتراک شما:</b>
+    <blockquote><code>{ $subscription_url }</code></blockquote>
+
+msg-subscription-raw-configs-title =
+    <b>🧩 کانفیگ های خام ({ $current }/{ $total })</b>
+
+msg-subscription-raw-configs-sent = ✅ کانفیگ های خام ارسال شد
+msg-subscription-raw-configs-empty = ⚠️ هیچ کانفیگ خامی از لینک اشتراک شما پیدا نشد.
+msg-subscription-raw-configs-unavailable = ❌ دریافت کانفیگ های خام انجام نشد. بعدا دوباره تلاش کنید.
+msg-subscription-raw-configs-missing = ⚠️ اشتراک فعال پیدا نشد.
 
 msg-subscription-success =
     <b>✅ پرداخت با موفقیت انجام شد!</b>

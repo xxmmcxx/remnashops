@@ -1,3 +1,8 @@
+import io
+from pathlib import Path
+from uuid import uuid4
+
+from aiogram import Bot
 from aiogram.types import CallbackQuery, Message
 from aiogram_dialog import DialogManager, ShowMode
 from aiogram_dialog.widgets.input import MessageInput
@@ -9,6 +14,16 @@ from loguru import logger
 from src.application.common import Notifier, Redirect
 from src.application.dto import MediaDescriptorDto, MessagePayloadDto, UserDto
 from src.application.use_cases.misc.queries.logs import GetLogs
+from src.application.use_cases.settings.commands.banner import (
+    ResetGlobalBanner,
+    SetGlobalBannerImagePath,
+    ToggleGlobalBanner,
+    UpdateGlobalBannerUrl,
+)
+from src.application.use_cases.settings.commands.qr_background import (
+    ToggleQrBackground,
+    UpdateQrBackgroundUrl,
+)
 from src.application.use_cases.user.commands.roles import RevokeRole, SetUserRole, SetUserRoleDto
 from src.core.constants import LOG_DIR, USER_KEY
 from src.core.enums import MediaType, Role
@@ -16,6 +31,7 @@ from src.core.exceptions import LogsToFileDisabledError, PermissionDeniedError, 
 from src.core.logger import LOG_FILENAME
 from src.core.utils.validators import parse_int
 from src.telegram.routers.dashboard.users.user.handlers import start_user_window
+from src.telegram.states import DashboardRemnashop
 from src.telegram.utils import is_double_click
 
 
@@ -117,3 +133,137 @@ async def on_admin_add_input(
         await notifier.notify_user(user=user, i18n_key="ntf-user.not-found")
     except PermissionDeniedError:
         await notifier.notify_user(user=user, i18n_key="ntf-error.permission-denied")
+
+
+@inject
+async def on_qr_background_toggle(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+    toggle_qr_background: FromDishka[ToggleQrBackground],
+) -> None:
+    del callback, widget
+    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    await toggle_qr_background(user)
+
+
+@inject
+async def on_qr_background_reset(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+    update_qr_background_url: FromDishka[UpdateQrBackgroundUrl],
+) -> None:
+    del callback, widget
+    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    await update_qr_background_url(user, "/clear")
+
+
+@inject
+async def on_qr_background_input(
+    message: Message,
+    widget: MessageInput,
+    dialog_manager: DialogManager,
+    update_qr_background_url: FromDishka[UpdateQrBackgroundUrl],
+) -> None:
+    del widget
+    dialog_manager.show_mode = ShowMode.EDIT
+    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+
+    if await update_qr_background_url(user, message.text or ""):
+        await dialog_manager.switch_to(state=DashboardRemnashop.QR_BACKGROUND)
+
+
+@inject
+async def on_global_banner_toggle(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+    toggle_global_banner: FromDishka[ToggleGlobalBanner],
+) -> None:
+    del callback, widget
+    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    await toggle_global_banner(user)
+
+
+@inject
+async def on_global_banner_reset(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+    reset_global_banner: FromDishka[ResetGlobalBanner],
+    notifier: FromDishka[Notifier],
+) -> None:
+    del callback, widget
+    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    await reset_global_banner(user)
+    await notifier.notify_user(user=user, i18n_key="ntf-common.value-updated")
+
+
+@inject
+async def on_global_banner_input(
+    message: Message,
+    widget: MessageInput,
+    dialog_manager: DialogManager,
+    bot: FromDishka[Bot],
+    notifier: FromDishka[Notifier],
+    reset_global_banner: FromDishka[ResetGlobalBanner],
+    update_global_banner_url: FromDishka[UpdateGlobalBannerUrl],
+    set_global_banner_image_path: FromDishka[SetGlobalBannerImagePath],
+) -> None:
+    del widget
+    dialog_manager.show_mode = ShowMode.EDIT
+    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+
+    if message.text:
+        text = message.text.strip()
+
+        if text.lower() in {"/clear", "clear", "none", "-"}:
+            await reset_global_banner(user)
+            await notifier.notify_user(user=user, i18n_key="ntf-common.value-updated")
+            await dialog_manager.switch_to(state=DashboardRemnashop.BANNER)
+            return
+
+        if await update_global_banner_url(user, text):
+            await dialog_manager.switch_to(state=DashboardRemnashop.BANNER)
+        return
+
+    file_id: str | None = None
+    suffix = ".jpg"
+
+    if message.photo:
+        file_id = message.photo[-1].file_id
+
+    elif message.document:
+        mime_type = (message.document.mime_type or "").lower()
+        file_name = (message.document.file_name or "").lower()
+        guessed_suffix = Path(file_name).suffix.lower()
+        is_image_ext = guessed_suffix in {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+
+        if mime_type.startswith("image/") or is_image_ext:
+            file_id = message.document.file_id
+
+            if guessed_suffix:
+                suffix = guessed_suffix
+            elif mime_type == "image/png":
+                suffix = ".png"
+            elif mime_type == "image/webp":
+                suffix = ".webp"
+            elif mime_type == "image/gif":
+                suffix = ".gif"
+
+    if not file_id:
+        await notifier.notify_user(user=user, i18n_key="ntf-common.invalid-value")
+        return
+
+    upload_dir = LOG_DIR / "banner_uploads"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    file_path = upload_dir / f"{uuid4().hex}{suffix}"
+    file_in_memory = io.BytesIO()
+    await bot.download(file_id, destination=file_in_memory)
+    file_path.write_bytes(file_in_memory.getvalue())
+
+    await set_global_banner_image_path(user, str(file_path))
+    await notifier.notify_user(user=user, i18n_key="ntf-common.value-updated")
+    await dialog_manager.switch_to(state=DashboardRemnashop.BANNER)

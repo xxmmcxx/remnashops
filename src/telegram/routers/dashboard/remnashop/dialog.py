@@ -20,8 +20,19 @@ from src.telegram.states import (
 from src.telegram.utils import require_permission
 from src.telegram.widgets import Banner, I18nFormat, IgnoreUpdate
 
-from .getters import admins_getter, remnashop_getter
-from .handlers import on_admin_add_input, on_logs_request, on_role_revoke, on_user_select
+from .getters import admins_getter, global_banner_getter, qr_background_getter, remnashop_getter
+from .handlers import (
+    on_admin_add_input,
+    on_global_banner_input,
+    on_global_banner_reset,
+    on_global_banner_toggle,
+    on_logs_request,
+    on_qr_background_input,
+    on_qr_background_reset,
+    on_qr_background_toggle,
+    on_role_revoke,
+    on_user_select,
+)
 
 remnashop = Window(
     Banner(BannerName.DASHBOARD),
@@ -87,6 +98,20 @@ remnashop = Window(
         ),
     ),
     Row(
+        SwitchTo(
+            text=I18nFormat("btn-remnashop.banner"),
+            id="banner",
+            state=DashboardRemnashop.BANNER,
+            when=require_permission(Permission.SETTINGS_MENU),
+        ),
+        SwitchTo(
+            text=I18nFormat("btn-remnashop.qr-background"),
+            id="qr_background",
+            state=DashboardRemnashop.QR_BACKGROUND,
+            when=require_permission(Permission.SETTINGS_MENU),
+        ),
+    ),
+    Row(
         Start(
             text=I18nFormat("btn-back.general"),
             id="back",
@@ -135,7 +160,76 @@ admins = Window(
     getter=admins_getter,
 )
 
+global_banner = Window(
+    Banner(BannerName.DASHBOARD),
+    I18nFormat(
+        "msg-remnashop-global-banner",
+        enabled=F["enabled"],
+        image_url=F["image_url"],
+        image_path=F["image_path"],
+    ),
+    Row(
+        Button(
+            text=I18nFormat("btn-global-banner.toggle", enabled=F["enabled"]),
+            id="toggle",
+            on_click=on_global_banner_toggle,
+        ),
+        Button(
+            text=I18nFormat("btn-global-banner.reset"),
+            id="reset",
+            on_click=on_global_banner_reset,
+            when=F["has_source"],
+        ),
+    ),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-back.general"),
+            id="back",
+            state=DashboardRemnashop.MAIN,
+        ),
+    ),
+    MessageInput(func=on_global_banner_input),
+    IgnoreUpdate(),
+    state=DashboardRemnashop.BANNER,
+    getter=global_banner_getter,
+)
+
+qr_background = Window(
+    Banner(BannerName.DASHBOARD),
+    I18nFormat(
+        "msg-remnashop-qr-background",
+        enabled=F["enabled"],
+        image_url=F["image_url"],
+    ),
+    Row(
+        Button(
+            text=I18nFormat("btn-qr-background.toggle", enabled=F["enabled"]),
+            id="toggle",
+            on_click=on_qr_background_toggle,
+        ),
+        Button(
+            text=I18nFormat("btn-qr-background.reset"),
+            id="reset",
+            on_click=on_qr_background_reset,
+            when=F["has_url"],
+        ),
+    ),
+    Row(
+        SwitchTo(
+            text=I18nFormat("btn-back.general"),
+            id="back",
+            state=DashboardRemnashop.MAIN,
+        ),
+    ),
+    MessageInput(func=on_qr_background_input),
+    IgnoreUpdate(),
+    state=DashboardRemnashop.QR_BACKGROUND,
+    getter=qr_background_getter,
+)
+
 router = Dialog(
     remnashop,
     admins,
+    global_banner,
+    qr_background,
 )

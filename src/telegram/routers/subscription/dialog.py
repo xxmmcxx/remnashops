@@ -11,6 +11,7 @@ from src.core.enums import BannerName, PaymentGatewayType, PurchaseType
 from src.telegram.keyboards import back_main_menu_button, connect_buttons
 from src.telegram.states import Subscription
 from src.telegram.widgets import Banner, I18nFormat, IgnoreUpdate
+from src.telegram.widgets.subscription_qr_banner import SubscriptionQrBanner
 
 from .getters import (
     confirm_getter,
@@ -29,6 +30,7 @@ from .handlers import (
     on_manual_receipt_start,
     on_payment_method_select,
     on_plan_select,
+    on_send_raw_configs,
     on_subscription_plans,
 )
 
@@ -40,7 +42,6 @@ subscription = Window(
             text=I18nFormat("btn-subscription.new"),
             id=f"{PAYMENT_PREFIX}{PurchaseType.NEW}",
             on_click=on_subscription_plans,
-            when=~F["has_active_subscription"],
         ),
         Button(
             text=I18nFormat("btn-subscription.renew"),
@@ -270,10 +271,22 @@ manual_receipt = Window(
 )
 
 success_payment = Window(
-    Banner(BannerName.SUBSCRIPTION),
+    SubscriptionQrBanner(),
     I18nFormat("msg-subscription-success"),
+    I18nFormat(
+        "msg-subscription-connection-url",
+        subscription_url=F["subscription_url"],
+    ),
     Row(
         *connect_buttons,
+    ),
+    Row(
+        Button(
+            text=I18nFormat("btn-subscription.raw-configs"),
+            id="raw_configs",
+            on_click=on_send_raw_configs,
+            style=Style(ButtonStyle.PRIMARY),
+        ),
     ),
     *back_main_menu_button,
     IgnoreUpdate(),
@@ -282,10 +295,22 @@ success_payment = Window(
 )
 
 success_trial = Window(
-    Banner(BannerName.SUBSCRIPTION),
+    SubscriptionQrBanner(),
     I18nFormat("msg-subscription-trial"),
+    I18nFormat(
+        "msg-subscription-connection-url",
+        subscription_url=F["subscription_url"],
+    ),
     Row(
         *connect_buttons,
+    ),
+    Row(
+        Button(
+            text=I18nFormat("btn-subscription.raw-configs"),
+            id="raw_configs",
+            on_click=on_send_raw_configs,
+            style=Style(ButtonStyle.PRIMARY),
+        ),
     ),
     *back_main_menu_button,
     IgnoreUpdate(),

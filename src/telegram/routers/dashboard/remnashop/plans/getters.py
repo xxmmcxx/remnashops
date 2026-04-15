@@ -121,6 +121,7 @@ async def configurator_getter(
         "is_unlimited_devices": plan.is_unlimited_devices,
         "plan_type": plan.type,
         "availability_type": plan.availability,
+        "public_code_display": plan.public_code or "-",
         "plan_url": f"{await bot_service.get_plan_url(plan.public_code)}"
         if plan.public_code
         else False,
@@ -139,6 +140,16 @@ async def name_getter(
 ) -> dict[str, Any]:
     plan = retort.load(dialog_manager.dialog_data[PlanDto.__name__], PlanDto)
     return {"name": plan.name}
+
+
+@inject
+async def prefix_getter(
+    dialog_manager: DialogManager,
+    retort: FromDishka[Retort],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    plan = retort.load(dialog_manager.dialog_data[PlanDto.__name__], PlanDto)
+    return {"prefix": plan.public_code or ""}
 
 
 @inject

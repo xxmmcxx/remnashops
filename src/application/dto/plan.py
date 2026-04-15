@@ -13,6 +13,7 @@ from .base import BaseDto, TimestampMixin, TrackableMixin
 @dataclass(kw_only=True)
 class PlanSnapshotDto:
     id: int
+    public_code: Optional[str] = None
 
     name: str
     tag: Optional[str] = None
@@ -33,6 +34,7 @@ class PlanSnapshotDto:
     def from_plan(cls, plan: "PlanDto", duration: int) -> Self:
         return cls(
             id=plan.id,  # type: ignore[arg-type]
+            public_code=plan.public_code,
             name=plan.name,
             tag=plan.tag,
             type=plan.type,
@@ -49,6 +51,7 @@ class PlanSnapshotDto:
     def test(cls) -> "PlanSnapshotDto":
         return cls(
             id=-1,
+            public_code="test",
             name="test",
             tag=None,
             type=PlanType.UNLIMITED,

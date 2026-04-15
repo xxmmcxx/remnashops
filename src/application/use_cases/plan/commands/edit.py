@@ -1,14 +1,17 @@
+import re
 from dataclasses import dataclass
 
 from loguru import logger
 
-from src.application.common import Cryptographer, Interactor
+from src.application.common import Interactor
 from src.application.common.dao import PlanDao
 from src.application.common.policy import Permission
 from src.application.dto import PlanDto, PlanPriceDto, UserDto
 from src.application.services import PricingService
 from src.core.constants import TAG_REGEX
 from src.core.enums import Currency, PlanType
+
+PLAN_PUBLIC_CODE_REGEX = re.compile(r"^[a-z0-9_]{3,24}$")
 
 
 @dataclass(frozen=True)
@@ -20,9 +23,8 @@ class UpdatePlanNameDto:
 class UpdatePlanName(Interactor[UpdatePlanNameDto, PlanDto]):
     required_permission = Permission.REMNASHOP_PLAN_EDITOR
 
-    def __init__(self, plan_dao: PlanDao, cryptographer: Cryptographer) -> None:
+    def __init__(self, plan_dao: PlanDao) -> None:
         self.plan_dao = plan_dao
-        self.cryptographer = cryptographer
 
     async def _execute(self, actor: UserDto, data: UpdatePlanNameDto) -> PlanDto:
         existing_plan = await self.plan_dao.get_by_name(data.input_name)
@@ -36,8 +38,39 @@ class UpdatePlanName(Interactor[UpdatePlanNameDto, PlanDto]):
             raise ValueError()
 
         data.plan.name = data.input_name
-        data.plan.public_code = self.cryptographer.generate_short_code(data.plan.name, length=8)
         logger.info(f"{actor.log} Updated plan name in memory to '{data.input_name}'")
+        return data.plan
+
+
+@dataclass(frozen=True)
+class UpdatePlanPublicCodeDto:
+    plan: PlanDto
+    input_public_code: str
+
+
+class UpdatePlanPublicCode(Interactor[UpdatePlanPublicCodeDto, PlanDto]):
+    required_permission = Permission.REMNASHOP_PLAN_EDITOR
+
+    def __init__(self, plan_dao: PlanDao) -> None:
+        self.plan_dao = plan_dao
+
+    async def _execute(self, actor: UserDto, data: UpdatePlanPublicCodeDto) -> PlanDto:
+        public_code = data.input_public_code.strip().lower()
+
+        if not PLAN_PUBLIC_CODE_REGEX.fullmatch(public_code):
+            logger.warning(f"{actor.log} Invalid plan prefix format: '{public_code}'")
+            raise ValueError("Invalid plan prefix format")
+
+        existing_plan = await self.plan_dao.get_by_public_code(public_code)
+        if existing_plan and existing_plan.id != data.plan.id:
+            logger.warning(
+                f"{actor.log} Tried to set duplicate plan prefix '{public_code}' "
+                f"for plan '{data.plan.id}'"
+            )
+            raise ValueError("Plan prefix already exists")
+
+        data.plan.public_code = public_code
+        logger.info(f"{actor.log} Updated plan prefix in memory to '{public_code}'")
         return data.plan
 
 

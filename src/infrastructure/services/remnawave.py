@@ -1,4 +1,5 @@
 import asyncio
+import re
 from dataclasses import fields, is_dataclass
 from typing import Optional, Union
 from uuid import UUID
@@ -216,14 +217,11 @@ class RemnawaveImpl(Remnawave):
         plan: Optional[PlanSnapshotDto],
         subscription: Optional[SubscriptionDto],
     ) -> CreateUserRequestDto:
-        is_trial = False
-
-        if plan:
-            is_trial = plan.is_trial
-        elif subscription:
-            is_trial = subscription.is_trial
-
-        username = user.remna_trial_name if is_trial else user.remna_name
+        username = self._build_plan_username(
+            user=user,
+            plan=plan,
+            subscription=subscription,
+        )
 
         if subscription:
             return CreateUserRequestDto(
@@ -255,6 +253,31 @@ class RemnawaveImpl(Remnawave):
             )
 
         raise ValueError("Either 'plan' or 'subscription' must be provided")
+
+    def _build_plan_username(
+        self,
+        user: UserDto,
+        plan: Optional[PlanSnapshotDto],
+        subscription: Optional[SubscriptionDto],
+    ) -> str:
+        plan_key: Optional[str] = None
+
+        if plan:
+            plan_key = plan.public_code or f"p{plan.id}"
+        elif subscription:
+            plan_key = (
+                getattr(subscription.plan_snapshot, "public_code", None)
+                or f"p{subscription.plan_snapshot.id}"
+            )
+
+        if not plan_key:
+            return user.remna_name
+
+        sanitized_plan_key = re.sub(r"[^a-zA-Z0-9_]", "_", plan_key).strip("_").lower()
+        if not sanitized_plan_key:
+            sanitized_plan_key = "plan"
+
+        return f"{sanitized_plan_key}_{user.telegram_id}"
 
     def _build_update_request(
         self,

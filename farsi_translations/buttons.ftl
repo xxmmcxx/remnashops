@@ -44,6 +44,8 @@ btn-menu =
     .connect = 🚀 اتصال
     .devices = 📱 دستگاه‌ها
     .subscription = 💳 اشتراک
+    .my-subs = 📦 اشتراک های من
+    .my-subs-copy-url = 📋 کپی لینک
     .invite = 👥 دعوت
     .support = 🆘 پشتیبانی
     .dashboard = 🛠 پنل مدیریت
@@ -251,6 +253,22 @@ btn-remnashop =
     .notifications = 🔔 اعلان‌ها
     .logs = 📄 گزارش‌ها
     .menu-editor = 🎛 دکمه‌های اضافی
+    .banner = 🖼️ بنر سراسری
+    .qr-background = 🖼️ پس‌زمینه QR
+
+btn-global-banner =
+    .toggle = { $enabled ->
+    [1] 🟢 بنر روشن
+    *[0] 🔴 بنر خاموش
+    }
+    .reset = ♻️ بازنشانی بنر
+
+btn-qr-background =
+    .toggle = { $enabled ->
+    [1] 🟢 پس‌زمینه روشن
+    *[0] 🔴 پس‌زمینه خاموش
+    }
+    .reset = ♻️ بازنشانی پس‌زمینه
 
 btn-menu-editor =
     .text = 🏷️ متن
@@ -369,6 +387,7 @@ btn-plans =
     .create = ✅ ایجاد طرح
     .delete = ❌ حذف
     .name = 🏷️ نام
+    .prefix = 🧬 پیشوند
     .description = 💬 توضیحات
     .description-remove = ❌ حذف توضیحات فعلی
     .tag = 📌 برچسب
@@ -466,6 +485,7 @@ btn-subscription =
     .back-duration = ⬅️ تغییر مدت
     .back-payment-method = ⬅️ تغییر روش پرداخت
     .connect = 🚀 اتصال
+    .raw-configs = 📄 نمایش کانفیگ های خام
 
     .duration = { $period } | { $final_amount -> 
     [0] 🎁

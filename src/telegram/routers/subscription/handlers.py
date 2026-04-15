@@ -1,3 +1,6 @@
+import base64
+import binascii
+from collections.abc import Sequence
 from html import escape
 from typing import Optional, TypedDict, cast
 from uuid import UUID
@@ -9,9 +12,10 @@ from aiogram_dialog.widgets.input import MessageInput
 from aiogram_dialog.widgets.kbd import Button, Select
 from dishka import FromDishka
 from dishka.integrations.aiogram_dialog import inject
+from httpx import AsyncClient, HTTPStatusError, Timeout
 from loguru import logger
 
-from src.application.common import Notifier
+from src.application.common import Notifier, TranslatorRunner
 from src.application.common.dao import (
     PaymentGatewayDao,
     PlanDao,
@@ -44,6 +48,18 @@ PAYMENT_CACHE_KEY = "payment_cache"
 CURRENT_DURATION_KEY = "selected_duration"
 CURRENT_METHOD_KEY = "selected_payment_method"
 MAX_RECEIPT_TEXT_LENGTH = 700
+MAX_RAW_CONFIGS_MESSAGE_LENGTH = 3400
+RAW_CONFIG_SCHEMES = (
+    "vless://",
+    "vmess://",
+    "trojan://",
+    "ss://",
+    "ssr://",
+    "hysteria://",
+    "hy2://",
+    "tuic://",
+    "wireguard://",
+)
 
 
 class CachedPaymentData(TypedDict):
@@ -77,6 +93,130 @@ def _save_payment_data(dialog_manager: DialogManager, payment_data: CachedPaymen
     dialog_manager.dialog_data["payment_id"] = payment_data["payment_id"]
     dialog_manager.dialog_data["payment_url"] = payment_data["payment_url"]
     dialog_manager.dialog_data["final_pricing"] = payment_data["final_pricing"]
+
+
+def _is_raw_config_line(line: str) -> bool:
+    return line.lower().startswith(RAW_CONFIG_SCHEMES)
+
+
+def _decode_base64_text(raw_text: str) -> Optional[str]:
+    compact = "".join(raw_text.split())
+    if not compact:
+        return None
+
+    padded = compact + "=" * (-len(compact) % 4)
+
+    try:
+        decoded = base64.b64decode(padded, validate=True)
+    except (ValueError, binascii.Error):
+        return None
+
+    text = decoded.decode("utf-8", errors="ignore").strip()
+    return text or None
+
+
+def _extract_raw_configs(raw_text: str) -> list[str]:
+    lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
+
+    if any(_is_raw_config_line(line) for line in lines):
+        return [line for line in lines if _is_raw_config_line(line)]
+
+    decoded_text = _decode_base64_text(raw_text)
+    if not decoded_text:
+        return []
+
+    decoded_lines = [line.strip() for line in decoded_text.splitlines() if line.strip()]
+    return [line for line in decoded_lines if _is_raw_config_line(line)]
+
+
+def _chunk_raw_configs(lines: Sequence[str]) -> list[str]:
+    chunks: list[str] = []
+    current_chunk: list[str] = []
+    current_size = 0
+
+    for line in lines:
+        extra_size = len(line) + (1 if current_chunk else 0)
+
+        if current_chunk and current_size + extra_size > MAX_RAW_CONFIGS_MESSAGE_LENGTH:
+            chunks.append("\n".join(current_chunk))
+            current_chunk = [line]
+            current_size = len(line)
+            continue
+
+        current_chunk.append(line)
+        current_size += extra_size
+
+    if current_chunk:
+        chunks.append("\n".join(current_chunk))
+
+    return chunks
+
+
+async def _fetch_raw_configs(subscription_url: str) -> list[str]:
+    timeout = Timeout(connect=5.0, read=20.0, write=5.0, pool=5.0)
+
+    async with AsyncClient(timeout=timeout, follow_redirects=True) as client:
+        response = await client.get(subscription_url)
+        response.raise_for_status()
+
+    return _extract_raw_configs(response.text)
+
+
+@inject
+async def on_send_raw_configs(
+    callback: CallbackQuery,
+    widget: Button,
+    dialog_manager: DialogManager,
+    i18n: FromDishka[TranslatorRunner],
+    subscription_dao: FromDishka[SubscriptionDao],
+) -> None:
+    del widget
+    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    subscription = await subscription_dao.get_current(user.telegram_id)
+
+    if not subscription:
+        await callback.answer(i18n.get("msg-subscription-raw-configs-missing"), show_alert=True)
+        return
+
+    try:
+        raw_configs = await _fetch_raw_configs(subscription.url)
+    except HTTPStatusError as e:
+        logger.warning(
+            f"{user.log} Failed to load raw configs. "
+            f"HTTP status '{e.response.status_code}' for '{subscription.url}'"
+        )
+        await callback.answer(
+            i18n.get("msg-subscription-raw-configs-unavailable"),
+            show_alert=True,
+        )
+        return
+    except Exception as e:
+        logger.warning(f"{user.log} Failed to load raw configs: {e}")
+        await callback.answer(
+            i18n.get("msg-subscription-raw-configs-unavailable"),
+            show_alert=True,
+        )
+        return
+
+    if not raw_configs:
+        await callback.answer(i18n.get("msg-subscription-raw-configs-empty"), show_alert=True)
+        return
+
+    chunks = _chunk_raw_configs(raw_configs)
+
+    if callback.message:
+        for index, chunk in enumerate(chunks, start=1):
+            header = i18n.get(
+                "msg-subscription-raw-configs-title",
+                current=index,
+                total=len(chunks),
+            )
+            await callback.message.answer(
+                text=f"{header}\n<pre><code>{escape(chunk)}</code></pre>",
+                disable_web_page_preview=True,
+            )
+
+    await callback.answer(i18n.get("msg-subscription-raw-configs-sent"), show_alert=False)
 
 
 async def _create_payment_and_get_data(
