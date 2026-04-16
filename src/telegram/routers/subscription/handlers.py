@@ -6,7 +6,9 @@ from typing import Optional, TypedDict, cast
 from uuid import UUID
 
 from adaptix import Retort
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery, Message
+from aiogram.types import ReactionTypeEmoji
 from aiogram_dialog import DialogManager, ShowMode, StartMode
 from aiogram_dialog.widgets.input import MessageInput
 from aiogram_dialog.widgets.kbd import Button, Select
@@ -715,6 +717,14 @@ async def on_manual_receipt_input(
         admin_payload.media_type = MediaType.PHOTO
 
     await notifier.notify_admins(admin_payload)
+
+    try:
+        await message.react(
+            reaction=[ReactionTypeEmoji(emoji="⚡")],
+            is_big=True,
+        )
+    except TelegramBadRequest as e:
+        logger.debug(f"{user.log} Failed to set reaction on receipt message: {e}")
 
     await notifier.notify_user(user=user, i18n_key="ntf-subscription.manual-receipt-sent")
 
