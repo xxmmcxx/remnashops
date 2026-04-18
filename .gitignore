@@ -13,6 +13,8 @@ logs/*
 # Environment
 .venv/
 .env
+.env.*
+!.env.example
 venv/
 .tests
 

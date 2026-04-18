@@ -9,15 +9,16 @@ from dishka.integrations.fastapi import FromDishka, inject
 from fastapi import Body, FastAPI, Header, HTTPException, Response, status
 from loguru import logger
 
+from src.core.config import AppConfig
+from src.infrastructure.services import BotRegistry
+
 
 class TelegramWebhookEndpoint:
     dispatcher: Dispatcher
-    secret_token: str
     _feed_update_tasks: set[asyncio.Task[Any]]
 
-    def __init__(self, dispatcher: Dispatcher, secret_token: str) -> None:
+    def __init__(self, dispatcher: Dispatcher) -> None:
         self.dispatcher = dispatcher
-        self.secret_token = secret_token
         self._feed_update_tasks = set()
 
     async def startup(self) -> None:
@@ -36,11 +37,14 @@ class TelegramWebhookEndpoint:
             f"Dispatcher shutdown complete and '{len(self._feed_update_tasks)}' tasks cleaned up"
         )
 
-    def register(self, app: FastAPI, path: str) -> None:
-        app.add_api_route(path, endpoint=self._handle_request, methods=["POST"])
+    def register(self, app: FastAPI, path: str, keyed_path: str | None = None) -> None:
+        app.add_api_route(path, endpoint=self._handle_primary_request, methods=["POST"])
 
-    def _verify_secret(self, telegram_secret_token: str) -> bool:
-        return secrets.compare_digest(telegram_secret_token, self.secret_token)
+        if keyed_path:
+            app.add_api_route(keyed_path, endpoint=self._handle_keyed_request, methods=["POST"])
+
+    def _verify_secret(self, provided_secret_token: str, expected_secret_token: str) -> bool:
+        return secrets.compare_digest(provided_secret_token, expected_secret_token)
 
     async def _feed_update(self, bot: Bot, update: Update) -> None:
         try:
@@ -50,20 +54,20 @@ class TelegramWebhookEndpoint:
         except Exception as e:
             logger.exception(f"Failed to process update '{update.update_id}' due to error '{e}'")
 
-    @inject
-    async def _handle_request(
+    async def _process_request(
         self,
-        update: Annotated[Update, Body()],
-        bot: FromDishka[Bot],
-        x_telegram_bot_api_secret_token: Annotated[str, Header()] = "",
+        update: Update,
+        bot: Bot,
+        expected_secret_token: str,
+        request_secret_token: str,
     ) -> Response:
-        if not x_telegram_bot_api_secret_token:
+        if not request_secret_token:
             logger.warning(f"Missing secret token header for update '{update.update_id}'")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Token header is missing"
             )
 
-        if not self._verify_secret(x_telegram_bot_api_secret_token):
+        if not self._verify_secret(request_secret_token, expected_secret_token):
             logger.warning(f"Invalid secret token provided for update '{update.update_id}'")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid secret token"
@@ -75,3 +79,47 @@ class TelegramWebhookEndpoint:
 
         logger.debug(f"Update '{update.update_id}' scheduled for processing")
         return Response(status_code=status.HTTP_200_OK)
+
+    @inject
+    async def _handle_primary_request(
+        self,
+        update: Annotated[Update, Body()],
+        config: FromDishka[AppConfig],
+        bot_registry: FromDishka[BotRegistry],
+        x_telegram_bot_api_secret_token: Annotated[str, Header()] = "",
+    ) -> Response:
+        bot_instance = config.primary_bot_instance
+        bot = bot_registry.get(bot_instance.key)
+
+        return await self._process_request(
+            update=update,
+            bot=bot,
+            expected_secret_token=bot_instance.secret_token.get_secret_value(),
+            request_secret_token=x_telegram_bot_api_secret_token,
+        )
+
+    @inject
+    async def _handle_keyed_request(
+        self,
+        bot_key: str,
+        update: Annotated[Update, Body()],
+        config: FromDishka[AppConfig],
+        bot_registry: FromDishka[BotRegistry],
+        x_telegram_bot_api_secret_token: Annotated[str, Header()] = "",
+    ) -> Response:
+        bot_instance = config.get_bot_instance(bot_key)
+        if bot_instance is None:
+            logger.warning(f"Webhook received for unknown bot key '{bot_key}'")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Bot not found",
+            )
+
+        bot = bot_registry.get(bot_instance.key)
+
+        return await self._process_request(
+            update=update,
+            bot=bot,
+            expected_secret_token=bot_instance.secret_token.get_secret_value(),
+            request_secret_token=x_telegram_bot_api_secret_token,
+        )

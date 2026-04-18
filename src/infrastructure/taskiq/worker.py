@@ -38,5 +38,6 @@ def worker() -> RedisStreamBroker:
     async def shutdown(state: TaskiqState) -> None:
         event_bus = await container.get(EventSubscriber)
         await event_bus.shutdown()
+        await container.close()
 
     return broker

@@ -1,8 +1,9 @@
 import re
+from functools import cached_property
 from pathlib import Path
 from typing import Self
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_core.core_schema import FieldValidationInfo
 
 from src.core.constants import API_V1, ASSETS_DIR, DOMAIN_REGEX, PAYMENTS_WEBHOOK_PATH
@@ -10,7 +11,7 @@ from src.core.enums import Locale, PaymentGatewayType
 from src.core.types import LocaleList, StringList
 
 from .base import BaseConfig
-from .bot import BotConfig
+from .bot import BotConfig, BotInstanceConfig
 from .build import BuildConfig
 from .database import DatabaseConfig
 from .log import LogConfig
@@ -30,6 +31,10 @@ class AppConfig(BaseConfig, env_prefix="APP_"):
     crypt_key: SecretStr
     assets_dir: Path = ASSETS_DIR
     origins: StringList = StringList("")
+    extra_bot_tokens_raw: str = Field(
+        default="",
+        validation_alias=AliasChoices("BOT_EXTRA_TOKENS", "APP_BOT_EXTRA_TOKENS"),
+    )
 
     bot: BotConfig = Field(default_factory=BotConfig)
     remnawave: RemnawaveConfig = Field(default_factory=RemnawaveConfig)
@@ -37,6 +42,28 @@ class AppConfig(BaseConfig, env_prefix="APP_"):
     redis: RedisConfig = Field(default_factory=RedisConfig)
     build: BuildConfig = Field(default_factory=BuildConfig)
     log: LogConfig = Field(default_factory=LogConfig)
+
+    @cached_property
+    def bot_instances(self) -> list[BotInstanceConfig]:
+        return self.bot.build_instances(self.extra_bot_tokens)
+
+    @property
+    def extra_bot_tokens(self) -> list[str]:
+        return [token.strip() for token in self.extra_bot_tokens_raw.split(",") if token.strip()]
+
+    @property
+    def is_multibot(self) -> bool:
+        return len(self.bot_instances) > 1
+
+    @property
+    def primary_bot_instance(self) -> BotInstanceConfig:
+        return self.bot_instances[0]
+
+    def get_bot_instance(self, bot_key: str) -> BotInstanceConfig | None:
+        for instance in self.bot_instances:
+            if instance.key == bot_key:
+                return instance
+        return None
 
     @property
     def banners_dir(self) -> Path:

@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Optional, Union
 
 from pydantic import SecretStr, field_validator
@@ -7,6 +8,29 @@ from src.core.constants import API_V1, BOT_WEBHOOK_PATH, URL_PATTERN
 
 from .base import BaseConfig
 from .validators import validate_not_change_me, validate_username
+
+
+@dataclass(frozen=True, slots=True)
+class BotInstanceConfig:
+    key: str
+    token: SecretStr
+    secret_token: SecretStr
+    owner_id: int
+    support_username: SecretStr
+    mini_app: Union[bool, SecretStr]
+    proxy_url: Optional[SecretStr]
+    reset_webhook: bool
+    drop_pending_updates: bool
+    setup_commands: bool
+    use_banners: bool
+    webhook_path: str
+
+    def webhook_url(self, domain: SecretStr) -> SecretStr:
+        url = f"https://{domain.get_secret_value()}{self.webhook_path}"
+        return SecretStr(url)
+
+    def safe_webhook_url(self, domain: SecretStr) -> str:
+        return f"https://{domain}{self.webhook_path}"
 
 
 class BotConfig(BaseConfig, env_prefix="BOT_"):
@@ -25,6 +49,10 @@ class BotConfig(BaseConfig, env_prefix="BOT_"):
     @property
     def webhook_path(self) -> str:
         return f"{API_V1}{BOT_WEBHOOK_PATH}"
+
+    @property
+    def webhook_multi_path(self) -> str:
+        return f"{self.webhook_path}/{{bot_key}}"
 
     @property
     def is_mini_app(self) -> bool:
@@ -46,6 +74,45 @@ class BotConfig(BaseConfig, env_prefix="BOT_"):
 
     def safe_webhook_url(self, domain: SecretStr) -> str:
         return f"https://{domain}{self.webhook_path}"
+
+    def build_instances(self, extra_tokens: list[str]) -> list[BotInstanceConfig]:
+        all_tokens = [self.token.get_secret_value(), *extra_tokens]
+
+        unique_tokens: list[str] = []
+        for token in all_tokens:
+            clean = token.strip()
+            if clean and clean not in unique_tokens:
+                unique_tokens.append(clean)
+
+        instances: list[BotInstanceConfig] = []
+        for index, token in enumerate(unique_tokens):
+            bot_key = self._extract_bot_key(token)
+            webhook_path = self.webhook_path if index == 0 else f"{self.webhook_path}/{bot_key}"
+
+            instances.append(
+                BotInstanceConfig(
+                    key=bot_key,
+                    token=SecretStr(token),
+                    secret_token=self.secret_token,
+                    owner_id=self.owner_id,
+                    support_username=self.support_username,
+                    mini_app=self.mini_app,
+                    proxy_url=self.proxy_url,
+                    reset_webhook=self.reset_webhook,
+                    drop_pending_updates=self.drop_pending_updates,
+                    setup_commands=self.setup_commands,
+                    use_banners=self.use_banners,
+                    webhook_path=webhook_path,
+                )
+            )
+
+        return instances
+
+    def _extract_bot_key(self, token: str) -> str:
+        key = token.split(":", maxsplit=1)[0].strip()
+        if not key.isdigit():
+            raise ValueError("BOT token must start with numeric bot id")
+        return key
 
     @field_validator("token", "secret_token", "support_username")
     @classmethod

@@ -4,9 +4,9 @@ x-build: &build
     dockerfile: Dockerfile.local
 
   volumes:
-      - ./src:/opt/remnashop/src
-      - ./logs:/opt/remnashop/logs
-      - ./assets:/opt/remnashop/assets
+      - ${LOCAL_SRC_DIR:-./src}:/opt/remnashop/src
+      - ${LOCAL_LOGS_DIR:-./logs}:/opt/remnashop/logs
+      - ${LOCAL_ASSETS_DIR:-./assets}:/opt/remnashop/assets
       - ./farsi_translations:/opt/remnashop/assets/translations/ru
 
 x-common: &common
@@ -28,13 +28,13 @@ x-logging: &logging
       max-file: 5
 
 x-env: &env
-  env_file: .env
+  env_file:
+    - ${STACK_ENV_FILE:-.env}
 
 
 services:
   remnashop-db:
     image: postgres:17
-    container_name: "remnashop-db"
     hostname: remnashop-db
     <<: [*common, *logging, *env]
 
@@ -45,7 +45,7 @@ services:
       - TZ=UTC
 
     ports:
-      - 127.0.0.1:6767:${DATABASE_PORT:-5432}
+      - 127.0.0.1:${DATABASE_EXPOSE_PORT:-6767}:${DATABASE_PORT:-5432}
       
     volumes:
       - remnashop-db-data:/var/lib/postgresql/data
@@ -59,7 +59,6 @@ services:
 
   remnashop-redis:
     image: valkey/valkey:9-alpine
-    container_name: "remnashop-redis"
     hostname: remnashop-redis
     <<: [*common, *logging, *env]
     
@@ -83,12 +82,11 @@ services:
     
 
   remnashop:
-    container_name: "remnashop-local"
     hostname: remnashop
     <<: [*build, *common, *logging, *env]
 
     ports:
-      - 127.0.0.1:5000:${APP_PORT:-5000}
+      - 127.0.0.1:${APP_PORT:-5000}:${APP_PORT:-5000}
 
     depends_on:
         remnashop-db:
@@ -98,7 +96,6 @@ services:
 
 
   remnashop-taskiq-worker:
-    container_name: "remnashop-taskiq-worker"
     hostname: remnashop-taskiq-worker
     <<: [*build, *common, *logging, *env]
 
@@ -112,7 +109,6 @@ services:
           condition: service_healthy
 
   remnashop-taskiq-scheduler:
-    container_name: "remnashop-taskiq-scheduler"
     hostname: remnashop-taskiq-scheduler
     <<: [*build, *common, *logging, *env]
 
@@ -128,17 +124,14 @@ services:
 
 networks:
   remnawave-network:
-    name: remnawave-network
     driver: bridge
     external: false
 
 volumes:
   remnashop-db-data:
-    name: remnashop-db-data
     driver: local
     external: false
-    
+
   remnashop-redis-data:
-    name: remnashop-redis-data
     driver: local
     external: false

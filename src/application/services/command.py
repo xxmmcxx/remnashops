@@ -20,8 +20,10 @@ class CommandService:
         self.config = config
         self.translator_hub = translator_hub
 
-    async def setup_commands(self) -> None:
-        if not self.config.bot.setup_commands:
+    async def setup_commands(self, is_enabled: bool | None = None) -> None:
+        should_setup = self.config.bot.setup_commands if is_enabled is None else is_enabled
+
+        if not should_setup:
             logger.debug("Bot commands setup is disabled")
             await self.delete_commands()
             return

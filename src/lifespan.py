@@ -10,7 +10,7 @@ from loguru import logger
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from src.application.common import Remnawave
+from src.application.common import Remnawave, TranslatorHub
 from src.application.common.dao import SettingsDao
 from src.application.events import (
     BotShutdownEvent,
@@ -26,7 +26,7 @@ from src.core.config import AppConfig
 from src.core.constants import REMNAWAVE_MAX_VERSION
 from src.core.utils.i18n_helpers import i18n_format_seconds
 from src.core.utils.time import get_uptime
-from src.infrastructure.services import EventBusImpl
+from src.infrastructure.services import BotRegistry, EventBusImpl
 from src.web.endpoints import TelegramWebhookEndpoint
 
 
@@ -61,36 +61,66 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     async with container(scope=Scope.REQUEST) as startup_container:
         config = await startup_container.get(AppConfig)
-        bot_service = await startup_container.get(BotService)
+        bot_registry = await startup_container.get(BotRegistry)
         settings_dao = await startup_container.get(SettingsDao)
         webhook_service = await startup_container.get(WebhookService)
-        command_service = await startup_container.get(CommandService)
+        translator_hub = await startup_container.get(TranslatorHub)
         remnawave_service = await startup_container.get(Remnawave)
         db_engine = await startup_container.get(AsyncEngine)
         create_default_payment_gateway = await startup_container.get(CreateDefaultPaymentGateway)
 
         await ensure_runtime_enums(db_engine)
 
-        if not await bot_service.is_inline_enabled():
-            logger.warning(
-                "Bot is not enabled for inline mode. "
-                "Please enable Inline Mode in BotFather for correct work of some features"
-            )
+        primary_states: dict[str, str] | None = None
 
-        states = await bot_service.get_bot_states()
+        for bot_instance, bot in bot_registry.iter_bots():
+            bot_service = BotService(bot=bot, config=config)
+            states = await bot_service.get_bot_states()
+
+            if primary_states is None:
+                primary_states = states
+
+            if not await bot_service.is_inline_enabled():
+                logger.warning(
+                    f"Bot '{bot_instance.key}' is not enabled for inline mode. "
+                    "Please enable Inline Mode in BotFather for correct work of some features"
+                )
+
         await create_default_payment_gateway.system()
         settings = await settings_dao.get()
         allowed_updates = dispatcher.resolve_used_update_types()
-        webhook_info: WebhookInfo = await webhook_service.setup_webhook(allowed_updates)
 
-        if webhook_service.has_error(webhook_info):
-            logger.critical(
-                f"Webhook has a last error message: '{webhook_info.last_error_message}'"
+        for bot_instance, bot in bot_registry.iter_bots():
+            webhook_info: WebhookInfo = await webhook_service.setup_webhook_for_bot(
+                allowed_updates=allowed_updates,
+                bot=bot,
+                webhook_path=bot_instance.webhook_path,
+                secret_token=bot_instance.secret_token.get_secret_value(),
+                drop_pending_updates=bot_instance.drop_pending_updates,
+                reset_webhook=bot_instance.reset_webhook,
             )
-            webhook_error_event = WebhookErrorEvent()
-            await event_bus.publish(webhook_error_event)
 
-        await command_service.setup_commands()
+            if webhook_service.has_error(webhook_info, bot=bot):
+                logger.critical(
+                    f"Webhook has a last error message for bot '{bot_instance.key}': "
+                    f"'{webhook_info.last_error_message}'"
+                )
+                webhook_error_event = WebhookErrorEvent()
+                await event_bus.publish(webhook_error_event)
+
+            command_service = CommandService(
+                bot=bot,
+                config=config,
+                translator_hub=translator_hub,
+            )
+            await command_service.setup_commands(is_enabled=bot_instance.setup_commands)
+
+        if primary_states is None:
+            primary_states = {
+                "groups_mode": "Unknown",
+                "privacy_mode": "Unknown",
+                "inline_mode": "Unknown",
+            }
 
     await telegram_webhook_endpoint.startup()
 
@@ -108,10 +138,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         <green>Build Time: {config.build.time}</>
         <green>Branch: {config.build.branch} ({config.build.tag})</>
         <green>Commit: {config.build.commit}</>
+        <green>Bots configured: {len(config.bot_instances)}</>
         <cyan>------------------------</>
-        Groups Mode  - {states["groups_mode"]}"
-        Privacy Mode - {states["privacy_mode"]}"
-        Inline Mode  - {states["inline_mode"]}"
+        Groups Mode  - {primary_states["groups_mode"]}"
+        Privacy Mode - {primary_states["privacy_mode"]}"
+        Inline Mode  - {primary_states["inline_mode"]}"
         <cyan>------------------------</>
         <yellow>Bot in access mode: '{settings.access.mode}'</>
         <yellow>Payments allowed: '{settings.access.payments_allowed}'</>
@@ -154,6 +185,25 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     await event_bus.shutdown()
     await telegram_webhook_endpoint.shutdown()
-    await command_service.delete_commands()
-    await webhook_service.delete_webhook()
+
+    async with container(scope=Scope.REQUEST) as shutdown_container:
+        config = await shutdown_container.get(AppConfig)
+        bot_registry = await shutdown_container.get(BotRegistry)
+        webhook_service = await shutdown_container.get(WebhookService)
+        translator_hub = await shutdown_container.get(TranslatorHub)
+
+        for bot_instance, bot in bot_registry.iter_bots():
+            command_service = CommandService(
+                bot=bot,
+                config=config,
+                translator_hub=translator_hub,
+            )
+            await command_service.delete_commands()
+            await webhook_service.delete_webhook_for_bot(
+                bot=bot,
+                reset_webhook=bot_instance.reset_webhook,
+            )
+
+        await bot_registry.shutdown()
+
     await container.close()
